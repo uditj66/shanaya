@@ -3,10 +3,11 @@
 //   npm run vapi:assistant -- create --url https://your-app.vercel.app
 //       Creates it once (voice, model, personality, tools) and saves VAPI_ASSISTANT_ID to .env.local.
 //   npm run vapi:assistant -- sync-tools --url https://your-app.vercel.app
-//       Updates ONLY the booking tools and server address. Your voice, model, greeting and
-//       personality edits made in the Vapi dashboard are kept.
+//       Updates the booking tools, server address (with the webhook secret) and the list of messages Vapi
+//       sends us. Your voice, model, greeting and personality edits made in the Vapi dashboard are kept.
 //   npm run vapi:assistant -- reset-prompt --url https://your-app.vercel.app
-//       Replaces the system prompt with the built-in Shanaya persona (overwrites prompt edits made in Vapi).
+//       Replaces ONLY the system prompt and first message with the built-in persona (overwrites prompt edits
+//       made in Vapi). Tools and server are left alone; run sync-tools for those.
 import { readFileSync, writeFileSync } from "node:fs";
 
 const env = readFileSync(".env.local", "utf8");
@@ -17,6 +18,13 @@ const url = arg("--url");
 if (!["create", "sync-tools", "reset-prompt"].includes(cmd ?? "") || !url) {
   console.error("Usage: npm run vapi:assistant -- <create|sync-tools|reset-prompt> --url https://your-live-app");
   process.exit(1);
+}
+// Without these, a sync would silently remove the webhook secret and every tool call would be "unauthorised".
+for (const k of ["VAPI_API_KEY", "VAPI_CREDENTIAL_ID"]) {
+  if (!get(k)) {
+    console.error(`${k} is missing in .env.local. Refusing to continue (it would break Shanaya's booking tools).`);
+    process.exit(1);
+  }
 }
 
 // the builders read these from the environment
@@ -48,14 +56,18 @@ if (cmd === "create") {
 } else if (cmd === "reset-prompt") {
   if (!existing) throw new Error("No VAPI_ASSISTANT_ID in .env.local. Run create first.");
   const current = await api(`/assistant/${existing}`);
-  await api(`/assistant/${existing}`, { method: "PATCH", body: JSON.stringify({ model: { ...current.model, messages: def.model.messages, tools: def.model.tools } }) });
-  console.log("Reset the system prompt to the built-in Shanaya persona (voice and model kept).");
+  await api(`/assistant/${existing}`, {
+    method: "PATCH",
+    body: JSON.stringify({ model: { ...current.model, messages: def.model.messages }, firstMessage: def.firstMessage }),
+  });
+  console.log("Reset the system prompt and first message to the built-in persona (voice, model, tools and server kept).");
 } else {
   if (!existing) throw new Error("No VAPI_ASSISTANT_ID in .env.local. Run create first.");
   const current = await api(`/assistant/${existing}`);
-  await api(`/assistant/${existing}`, {
+  const updated = await api(`/assistant/${existing}`, {
     method: "PATCH",
     body: JSON.stringify({ model: { ...current.model, tools: def.model.tools }, server: def.server, serverMessages: def.serverMessages }),
   });
-  console.log(`Synced ${def.model.tools.length} booking tools and the server address. Voice, model and personality left as you set them.`);
+  if (!updated.server?.credentialId) throw new Error("Vapi saved the server WITHOUT the webhook credential: tool calls would be rejected. Check VAPI_CREDENTIAL_ID.");
+  console.log(`Synced ${def.model.tools.length} tools, server (with secret) and server messages (${def.serverMessages.join(", ")}). Voice, model and personality left as you set them.`);
 }

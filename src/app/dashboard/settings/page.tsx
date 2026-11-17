@@ -9,6 +9,7 @@ const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", 
 
 export default async function Settings({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string; welcome?: string }> }) {
   const { salon } = await requireSalon();
+  const vapiManaged = !!process.env.VAPI_ASSISTANT_ID;
   const sp = await searchParams;
   const hours = salon.business_hours as Record<string, [string, string][]>;
   const base = appUrl();
@@ -56,14 +57,14 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <Card className="space-y-3">
           <h2 className="font-serif text-xl font-semibold">AI receptionist</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Assistant name"><Input name="agent_name" defaultValue={salon.agent_name} /></Field>
-            <Field label="Transfer calls to (optional)" hint="Human fallback number in +91… format"><Input name="transfer_phone" defaultValue={salon.transfer_phone ?? ""} /></Field>
+            <Field label="Assistant name" hint="Used on phone, website voice and chat"><Input name="agent_name" defaultValue={salon.agent_name} /></Field>
+            <Field label="Transfer calls to (optional)" hint="This branch's front desk, e.g. +91 22 4000 0000. Used when a phone caller asks for a person"><Input name="transfer_phone" defaultValue={salon.transfer_phone ?? ""} /></Field>
           </div>
-          <Field label="Greeting" hint="Leave blank for the default"><Input name="agent_greeting" defaultValue={salon.agent_greeting ?? ""} /></Field>
+          {!vapiManaged && <Field label="Greeting" hint="Leave blank for the default"><Input name="agent_greeting" defaultValue={salon.agent_greeting ?? ""} /></Field>}
           <Field label="Policies"><Textarea name="policies" defaultValue={salon.policies} /></Field>
           <Field label="Offers, FAQs and extra instructions"><Textarea name="agent_instructions" defaultValue={salon.agent_instructions} /></Field>
-          {process.env.VAPI_ASSISTANT_ID ? (
-            <VapiManaged assistantId={process.env.VAPI_ASSISTANT_ID} agentName={salon.agent_name} />
+          {vapiManaged ? (
+            <VapiManaged assistantId={process.env.VAPI_ASSISTANT_ID!} agentName={salon.agent_name} />
           ) : (
           <VoicePicker
             provider={salon.voice_provider}
@@ -74,8 +75,10 @@ export default async function Settings({ searchParams }: { searchParams: Promise
           />
           )}
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Voice conversation model" hint="Phone and website voice calls (as listed in Vapi)"><Input name="phone_llm_model" defaultValue={salon.phone_llm_model} /></Field>
-            <Field label="Typed chat model (OpenAI)"><Input name="llm_model" defaultValue={salon.llm_model} /></Field>
+            {!vapiManaged && (
+              <Field label="Voice conversation model" hint="Phone and website voice calls (as listed in Vapi)"><Input name="phone_llm_model" defaultValue={salon.phone_llm_model} /></Field>
+            )}
+            <Field label="Typed chat model (OpenAI)" hint={vapiManaged ? "Voice model, greeting and voice are set in Vapi" : undefined}><Input name="llm_model" defaultValue={salon.llm_model} /></Field>
           </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="widget_enabled" defaultChecked={salon.widget_enabled} /> Website widget enabled</label>
         </Card>

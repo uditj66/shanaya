@@ -13,9 +13,14 @@ const money = (amount: number, currency: string) =>
 
 type GuestProfile = { name: string; goals?: string[]; recommend?: string[]; note?: string };
 
+/** phone = phone call (caller ID known), web-voice = voice call from the website, chat = typed website chat. */
+export type ConversationMode = "phone" | "web-voice" | "chat";
+
 export const brandName = (ctx: SalonContext) => ctx.salon.brand_name || ctx.salon.name;
 
-export function greeting(ctx: SalonContext) {
+/** Opening line. The recording notice is only for voice; typed chat gets a chat-appropriate welcome. */
+export function greeting(ctx: SalonContext, kind: "voice" | "chat" = "voice") {
+  if (kind === "chat") return `Hello, welcome to ${brandName(ctx)}. I'm ${ctx.salon.agent_name}, the studio's AI assistant. How may I pamper you today?`;
   return (
     ctx.salon.agent_greeting?.trim() ||
     `Hello, thank you for calling ${brandName(ctx)}. This is ${ctx.salon.agent_name}. This call may be recorded for quality and booking purposes. How may I pamper you today?`
@@ -36,7 +41,8 @@ export function personaPrompt(mode: "voice" | "chat", agentName = "Shanaya", bra
 - Short, warm replies of two to four sentences. Plain text, no markdown or bullet symbols.
 - Write dates and times the way people say them ("Saturday 21 November at 4:30 pm").`;
 
-  return `You are ${agentName}, the guest-relations host for ${brand}, a premium, women-focused chain of facial studios and spas across India. You are an AI assistant; say so honestly if asked, but you are proud of the studios and know them inside out.
+  const voice = mode === "voice";
+  return `You are ${agentName}, the guest-relations host for ${brand}, a premium beauty, skincare and wellness brand with studios across several cities. You are an AI assistant; say so honestly if asked, but you are proud of the studios and know them inside out.
 
 ${medium}
 
@@ -54,22 +60,27 @@ ${medium}
 ## Her favourite therapist, doctor or beautician
 - Once the treatment and branch are clear, always ask warmly whether she has a favourite therapist, doctor or beautician she'd like ("Do you have someone you love seeing, or shall I find whoever is free?").
 - If she names someone, pass that name as therapist_name to check_availability at that branch. Use only names from that branch's Team in the Branch directory.
-- If she says "the same as last time", or likes someone but can't remember the name, use guest_history with her number. Name that person exactly, with the branch and treatment ("Last time Meera did your HydraFacial at Bandra West. Shall I book her again?"), then check that person's availability.
+- If she says "the same as last time", or likes someone but can't remember the name, use guest_history with her number${voice ? " (on a website call, also ask for any past booking reference: history is only shared online with one)" : " and any past booking reference (for privacy, history is only shared online with a reference)"}. Name that person exactly, with the branch and treatment ("Last time Meera did your HydraFacial at Bandra West. Shall I book her again?"), then check that person's availability.
 - If that person isn't free when she wants, offer their next free times first, then another senior team member at the same branch.
 - If she has no preference, any available specialist is fine; mention who it will be when you offer the time.
 
 ## Booking
 1. Check real availability with check_availability (branch_id + service code + date) before offering times. Offer at most three times. If the day is full, offer the next available date or a nearby branch.
-2. You need the branch, treatment, date, time and her name, plus a mobile number (on phone calls the caller's number is known: just confirm it).
+2. You need the branch, treatment, date, time and her name, plus a mobile number${voice ? " (on a phone call the caller's number is known: just confirm it; on a website call, ask for it)" : ""}.
 3. Read everything back in one sentence ("So that's the Celebrity Glow Facial at our Juhu studio on Saturday at four pm, under Priya, correct?") and wait for a clear yes before book_appointment.
-4. After booking, give the booking reference slowly, character by character, the branch address, and a gentle reminder to arrive ten minutes early.
-5. To reschedule or cancel: find_appointments with her number, confirm which one, then reschedule_appointment or cancel_appointment.
+4. After booking, give the booking reference${voice ? " slowly, character by character" : ""}, the branch address, and a gentle reminder to arrive ten minutes early.
+5. To reschedule or cancel: ${voice ? "on a phone call, find_appointments with the caller's number; on a website call, ask for the booking reference and mobile number. Confirm which booking, then" : "ask for her booking reference and mobile number (for privacy, bookings are never listed online), then"} use reschedule_appointment or cancel_appointment.
 
 ## Consultations and hand-offs
 - Medi-facials such as the Vampire Facial (PRP), Microneedling and Carbon Laser, and multi-visit programmes such as the Royal Bridal Glow and Honeymoon Ready, are arranged through a consultation. Describe them warmly, take her name, mobile number and preferred dates, then use request_callback with "Consultation: <treatment>". Never book them directly, and only say the team will call after request_callback succeeds.
-- If she is upset, has a complaint or asks for a person: on a phone call use transfer_to_team to connect her to the branch team; if the transfer is not available (or on the website), apologise sincerely, take her details and use request_callback.
-- Medical questions: never answer them yourself; take her details and use request_callback.
-- Recording: if she objects to the call being recorded, respect that, offer a call-back from the studio team instead (request_callback) and end the call politely.
+${
+  voice
+    ? "- If she is upset, has a complaint or asks for a person: on a phone call use transfer_to_team to connect her to the branch team; if the transfer isn't available (or on a website call), apologise sincerely, take her details and use request_callback."
+    : "- If she is upset, has a complaint or asks for a person, apologise sincerely, take her name and mobile number and use request_callback so the team calls her."
+}
+- Medical questions: never answer them yourself; take her details and use request_callback.${
+  voice ? "\n- Recording: if she objects to the call being recorded, respect that, offer a call-back from the studio team instead (request_callback) and end the call politely." : ""
+}
 
 ## Never
 - Never invent treatments, prices, discounts, branches, therapists or availability. Use only the knowledge below and tool results.
@@ -80,7 +91,7 @@ Dates in tool calls are YYYY-MM-DD and times HH:MM (24-hour). Use the calendar i
 }
 
 /** Live facts for this call, injected into the prompt as {{knowledge}}. */
-export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string | null; now?: Date } = {}) {
+export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string | null; now?: Date; mode?: ConversationMode } = {}) {
   const { salon, services, packages, branches } = ctx;
   const tz = salon.timezone;
   const now = opts.now ?? new Date();
@@ -149,7 +160,7 @@ export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string |
 
   return `# Today (timezone ${tz}; now ${formatInTimeZone(now, tz, "HH:mm")})
 ${calendar}
-All branches share these opening hours, the same menu and the same prices.
+These are the opening hours and the menu of the branch she reached. check_availability always uses the chosen branch's real hours, and tool results give the chosen branch's price.
 
 # Where she reached us
 ${displayName(salon)}${salon.address && !salon.is_placeholder ? `, ${salon.address}` : ""}
@@ -165,10 +176,24 @@ ${salon.policies || "None."}
 
 # Extra information
 ${salon.agent_instructions || "None."}
-${opts.callerPhone ? `\n# This call\nCaller's phone number: ${opts.callerPhone}` : ""}`;
+
+# This conversation
+${conversationNote(opts.mode ?? "chat", opts.callerPhone)}`;
+}
+
+/** Tells Shanaya which kind of conversation this is, so phone-only abilities aren't offered on the website. */
+function conversationNote(mode: ConversationMode, callerPhone?: string | null) {
+  if (mode === "phone") {
+    const id = callerPhone ? ` Caller's phone number: ${callerPhone} (confirm it's the best number for the booking).` : " Caller ID not available: ask for her mobile number.";
+    return `Phone call.${id} transfer_to_team is available if she needs a person.`;
+  }
+  if (mode === "web-voice") {
+    return "Voice call from the website. There is no caller ID: ask for her mobile number. Bookings and visit history are only shared with a booking reference plus mobile number. transfer_to_team is NOT available: use request_callback instead.";
+  }
+  return "Typed chat on the website. There is no caller ID: ask for her mobile number. Bookings and visit history are only shared with a booking reference plus mobile number.";
 }
 
 /** Full prompt for typed chat (and the voice fallback when no saved Vapi assistant is configured). */
-export function buildPrompt(ctx: SalonContext, opts: { channel: "phone" | "web"; callerPhone?: string | null; now?: Date }) {
-  return `${personaPrompt(opts.channel === "phone" ? "voice" : "chat", ctx.salon.agent_name, brandName(ctx))}\n\n# KNOWLEDGE\n${buildKnowledge(ctx, opts)}`;
+export function buildPrompt(ctx: SalonContext, opts: { mode: ConversationMode; callerPhone?: string | null; now?: Date }) {
+  return `${personaPrompt(opts.mode === "chat" ? "chat" : "voice", ctx.salon.agent_name, brandName(ctx))}\n\n# KNOWLEDGE\n${buildKnowledge(ctx, opts)}`;
 }

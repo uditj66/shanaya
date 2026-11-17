@@ -78,10 +78,13 @@ They sign up at `/login`, create their studio, then fill in **Settings** (hours,
 
 ## Shanaya's voice (identical on phone and website)
 
-- **One source of truth:** `src/lib/agent/vapi.ts` → `buildVapiAssistant()` builds the assistant for phone calls (`/api/vapi`), the website "Talk to Shanaya" button (`/api/widget/[slug]/voice`) and the Settings preview (`/api/voice-preview`). `src/lib/agent/voice-consistency.test.ts` fails if they ever drift apart.
-- **Default voice:** Vapi `Naina` (female, Indian accent, natural). Backup if that provider is down: Azure `en-IN-NeerjaNeural` (female, Indian English). Neither is ever replaced by a provider default voice.
-- **Change it:** Dashboard → Settings → AI receptionist → voice picker (presets or any Vapi-library voice ID) and speaking pace. Press "▶ Talk to Shanaya" to hear exactly what callers hear.
-- **Keys needed:** `VAPI_API_KEY` (private, server) and `NEXT_PUBLIC_VAPI_PUBLIC_KEY` (public, browser; restrict it to your domains in the Vapi dashboard). Booking tools during a voice call need the app reachable from the internet (`PUBLIC_APP_URL` = your Vercel URL, or a temporary tunnel when testing locally).
+- **Managed in the Vapi dashboard:** one saved assistant () serves every branch on phone and website. Edit her voice, model, greeting and personality in Vapi and click **Publish**. Keep the  line in the prompt;  and  come from each branch's Settings.
+- **What the app sends per call** ( in ): live knowledge, names, and a **signed** branch id (), so nobody can point tools at another branch. Never add a per-call  override: Vapi then drops the webhook secret and every tool call fails as unauthorised (a test guards this).
+- **After changing tools or server settings:** > shanaya@0.1.0 vapi:assistant
+> tsx scripts/vapi-assistant.mts sync-tools --url https://shanaya-self.vercel.app/
+
+Synced 8 tools, server (with secret) and server messages (tool-calls, end-of-call-report, transfer-destination-request). Voice, model and personality left as you set them. (keeps your Vapi edits).  restores the built-in persona and greeting. Then refresh the Vapi dashboard, and use **Publish ▾ → Discard Changes** if it still shows an old draft.
+- **Privacy:** on the website (no caller ID) Shanaya only shares bookings or visit history with a booking reference plus mobile number.
 
 ## The Lumière chain (standard SOP catalogue)
 

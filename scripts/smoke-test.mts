@@ -47,10 +47,10 @@ async function tool(name: string, args: Record<string, unknown>, id = `${callId}
   return JSON.parse(body.results?.[0]?.result ?? "{}");
 }
 
-// next Wednesday (all three therapists' pattern makes Wed a full day for facials)
-const d = new Date();
-d.setDate(d.getDate() + (((3 - d.getDay() + 7) % 7) || 7));
-const DATE = d.toISOString().slice(0, 10);
+// next Wednesday in India time (every therapist role works Wednesdays at the flagship)
+const { todayIn, addDays, weekdayOf } = await import("../src/lib/time");
+const todayIST = todayIn("Asia/Kolkata");
+const DATE = addDays(todayIST, ((3 - weekdayOf(todayIST) + 7) % 7) || 7);
 
 console.log(`Smoke test against ${APP} for ${DATE}`);
 const { data: before } = await db.from("salons").select("vapi_phone_number_id").eq("id", SALON).single();
@@ -94,6 +94,45 @@ async function run() {
   const { data: s0 } = await db.from("salons").select("transfer_phone").eq("id", SALON).single();
   if (s0?.transfer_phone ? tr.body.destination?.number : tr.body.error) pass(`transfer request handled (${tr.body.destination ? "connects to the branch team" : "no team number → call-back"})`);
   else fail("transfer-destination-request", tr.body);
+
+  // ── The path REAL calls take: no ?salon= in the URL, branch from SIGNED variableValues ──
+  const live = await (await fetch(`${APP}/api/widget/lumiere/voice`)).json();
+  const vv = live.assistantOverrides?.variableValues;
+  if (vv?.salon_sig && vv?.salon_id === SALON) pass("live call config carries a signed branch id");
+  else fail("live call config not signed", live);
+  const webCall = (vars: Record<string, unknown>) => ({ id: `${callId}-web`, type: "webCall", assistantOverrides: { variableValues: vars } });
+  const viaCall = async (callObj: unknown, name: string, args: Record<string, unknown>, id = `${callId}-v${++seq}`) => {
+    const { body } = await vapi({ type: "tool-calls", call: callObj, toolCallList: [{ id, type: "function", function: { name, arguments: args } }] });
+    return JSON.parse(body.results?.[0]?.result ?? "{}");
+  };
+  if (vv) {
+    const ok = await viaCall(webCall(vv), "check_availability", { branch_id: SALON, service: "FAC005", date: DATE });
+    if (Array.isArray(ok.available)) pass("tool call WITHOUT ?salon= works via the signed branch id (production path)");
+    else fail("production-path tool call", ok);
+
+    const forged = await viaCall(webCall({ ...vv, salon_id: juhu!.id }), "check_availability", { service: "FAC005", date: DATE });
+    if (forged.error) pass("forged branch id (bad signature) is rejected");
+    else fail("forged signature accepted!", forged);
+
+    // Website privacy: a phone number alone must not reveal someone's bookings
+    const peek = await viaCall(webCall(vv), "find_appointments", { phone: "9000000010" });
+    if (peek.error && !peek.appointments) pass("website can't list bookings from a phone number alone");
+    else fail("website leaked bookings", peek);
+
+    // Two identical tool calls at the SAME time (Vapi retry while the first is still running) → one booking
+    const avC = await viaCall(webCall(vv), "check_availability", { branch_id: SALON, service: "FAC005", date: DATE, preferred_time: "12:00" });
+    const tC = avC.available?.[0]?.time;
+    if (tC) {
+      const args = { branch_id: SALON, service: "FAC005", date: DATE, time: tC, customer_name: "Smoke Concurrent Guest", phone: "9000000013" };
+      const sameId = `${callId}-concurrent`;
+      const [r1, r2] = await Promise.all([viaCall(webCall(vv), "book_appointment", args, sameId), viaCall(webCall(vv), "book_appointment", args, sameId)]);
+      const refs = [r1.reference, r2.reference].filter(Boolean);
+      const { count } = await db.from("bookings").select("*, customer:customer_id!inner (phone)", { count: "exact", head: true }).eq("customer.phone", "919000000013").neq("status", "cancelled");
+      juhuRefs.push(...refs);
+      if (count === 1 && refs.length === 2 && refs[0] === refs[1]) pass("two simultaneous identical tool calls → exactly one booking");
+      else fail("concurrent retry", { r1, r2, count });
+    }
+  }
 
   // 2. Availability
   const av = await tool("check_availability", { service_id: HYDRA, date: DATE, preferred_time: "17:00" });
@@ -171,7 +210,8 @@ async function run() {
   await db.from("bookings").delete().in("id", (rows ?? []).map((r) => r.id));
   await db.from("callbacks").delete().eq("call_id", row?.id ?? "");
   await db.from("calls").delete().eq("external_id", callId);
-  await db.from("customers").delete().eq("salon_id", SALON).in("phone", ["919000012345", "919000000010", "919000000011", "919000000012"]);
+  await db.from("customers").delete().in("phone", ["919000012345", "919000000010", "919000000011", "919000000012", "919000000013"]);
+  await db.from("tool_call_log").delete().like("tool_call_id", `${callId}%`);
 }
 
 try {

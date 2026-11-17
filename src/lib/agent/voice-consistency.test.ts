@@ -1,7 +1,8 @@
 // Guarantees Shanaya sounds and behaves the same on a phone call and a website voice call.
 import { afterEach, describe, expect, it } from "vitest";
-import { buildVapiAssistant, savedAssistantDefinition, vapiCallConfig } from "./vapi";
-import { buildKnowledge, personaPrompt } from "./prompt";
+import { buildVapiAssistant, escapeLiquid, savedAssistantDefinition, SERVER_MESSAGES, vapiCallConfig } from "./vapi";
+import { signSalon, verifySalon } from "./call-signature";
+import { buildKnowledge, greeting, personaPrompt } from "./prompt";
 import { buildVoice, VOICE_PRESETS } from "./voices";
 import type { SalonContext } from "./context";
 
@@ -24,7 +25,8 @@ const ctx: SalonContext = {
   branches: [{ id: "s2", name: "Lumière · Juhu", slug: "lumiere-mumbai-juhu", city: "Mumbai", area: "Juhu", address: "Juhu Tara Road", phone: "+91 22 2600 1111", is_placeholder: false }],
 };
 const NOW = new Date("2026-11-18T06:30:00Z");
-const stripCaller = (k: string) => k.replace(/\n# This call[\s\S]*$/, "").replace(/now \d{2}:\d{2}/, "");
+// "This conversation" (phone vs website) is the only intended difference between channels
+const stripCaller = (k: string) => k.replace(/\n# This conversation[\s\S]*$/, "").replace(/now \d{2}:\d{2}/, "");
 
 afterEach(() => {
   delete process.env.VAPI_ASSISTANT_ID;
@@ -59,7 +61,7 @@ describe("saved Vapi assistant (managed in the Vapi dashboard)", () => {
 
   it("the saved assistant's prompt is the voice persona plus the {{knowledge}} slot", () => {
     const def = savedAssistantDefinition();
-    expect(def.model.messages[0].content).toContain(personaPrompt("voice"));
+    expect(def.model.messages[0].content).toContain(personaPrompt("voice", "{{agent_name}}", "{{brand_name}}"));
     expect(def.model.messages[0].content).toContain("{{knowledge}}");
     expect(def.firstMessage).toContain("{{brand_name}}");
     expect(def.voice).toEqual({ provider: "vapi", voiceId: "Naina" });
@@ -129,5 +131,72 @@ describe("go-live safety", () => {
     const p = personaPrompt("voice");
     expect(p).toContain("transfer_to_team");
     expect(p).toMatch(/objects to the call being recorded/i);
+  });
+});
+
+describe("audit fixes: silent failures", () => {
+  it("Vapi sends every message type the webhook handles (incl. transfers)", () => {
+    expect(SERVER_MESSAGES).toEqual(expect.arrayContaining(["tool-calls", "end-of-call-report", "transfer-destination-request"]));
+    expect(savedAssistantDefinition().serverMessages).toEqual(SERVER_MESSAGES);
+  });
+
+  it("the saved assistant uses the salon's agent and brand names, passed on every call", () => {
+    process.env.VAPI_ASSISTANT_ID = "asst_123";
+    const def = savedAssistantDefinition();
+    expect(def.firstMessage).toContain("{{agent_name}}");
+    expect(def.model.messages[0].content).toContain("You are {{agent_name}}");
+    const cfg = vapiCallConfig({ ...ctx, salon: { ...salon, agent_name: "Aanya" } }, null, "web") as unknown as { assistantOverrides: { variableValues: Record<string, string> } };
+    expect(cfg.assistantOverrides.variableValues.agent_name).toBe("Aanya");
+  });
+});
+
+describe("audit fixes: branch signature", () => {
+  it("accepts our own signature and rejects forged, swapped or expired ones", () => {
+    const now = Date.parse("2026-11-18T10:00:00Z");
+    const { salon_sig, sig_exp } = signSalon("s1", 3600, now);
+    expect(verifySalon("s1", salon_sig, sig_exp, now)).toBe(true);
+    expect(verifySalon("s2", salon_sig, sig_exp, now)).toBe(false); // other branch
+    expect(verifySalon("s1", "forged", sig_exp, now)).toBe(false);
+    expect(verifySalon("s1", salon_sig, sig_exp, now + 2 * 3600 * 1000)).toBe(false); // expired
+    expect(verifySalon("s1", undefined, undefined, now)).toBe(false);
+  });
+
+  it("every call config carries a valid signature for its branch", () => {
+    process.env.VAPI_ASSISTANT_ID = "asst_123";
+    const v = (vapiCallConfig(ctx, null, "web") as unknown as { assistantOverrides: { variableValues: Record<string, string> } }).assistantOverrides.variableValues;
+    expect(verifySalon(v.salon_id, v.salon_sig, v.sig_exp)).toBe(true);
+  });
+});
+
+describe("audit fixes: chat vs voice", () => {
+  it("typed chat greeting has no recording notice; voice greeting does", () => {
+    expect(greeting(ctx, "chat")).not.toMatch(/recorded|calling/i);
+    expect(greeting(ctx, "voice")).toMatch(/may be recorded/i);
+  });
+
+  it("chat persona has no phone-only instructions", () => {
+    const chat = personaPrompt("chat");
+    expect(chat).not.toContain("transfer_to_team");
+    expect(chat).not.toMatch(/end the call|character by character|objects to the call/i);
+    expect(chat).toMatch(/booking reference and mobile number/i);
+  });
+
+  it("knowledge tells her which kind of conversation it is", () => {
+    expect(buildKnowledge(ctx, { mode: "phone", callerPhone: "+919000012345", now: NOW })).toMatch(/Phone call\. Caller's phone number/);
+    expect(buildKnowledge(ctx, { mode: "web-voice", now: NOW })).toMatch(/transfer_to_team is NOT available/);
+    expect(buildKnowledge(ctx, { mode: "chat", now: NOW })).toMatch(/Typed chat on the website/);
+  });
+
+  it("knowledge no longer claims all branches share hours and prices", () => {
+    expect(buildKnowledge(ctx, { now: NOW })).not.toMatch(/All branches share/);
+  });
+
+  it("owner text can't inject Liquid template code into Vapi", () => {
+    expect(escapeLiquid("Offer {{ secret }} and {% if x %}")).toBe("Offer { { secret } } and { % if x % }");
+    process.env.VAPI_ASSISTANT_ID = "asst_123";
+    const k = (vapiCallConfig({ ...ctx, salon: { ...salon, agent_instructions: "Use {{knowledge}} here" } }, null, "web") as unknown as {
+      assistantOverrides: { variableValues: Record<string, string> };
+    }).assistantOverrides.variableValues.knowledge;
+    expect(k).not.toContain("{{knowledge}}");
   });
 });

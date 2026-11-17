@@ -24,12 +24,11 @@ const tools = toolDefs.map((t) => ({
 
 type State = { previous_response_id?: string; turns?: number };
 
-const webGreeting = (g: string) => g.replace(/calling/i, "contacting");
 
 export async function startWebChat(salonId: string) {
   const ctx = await loadSalonContext(adminClient(), salonId);
   if (!ctx) throw new Error("Salon not found");
-  return { sessionId: randomUUID(), reply: webGreeting(greeting(ctx)) };
+  return { sessionId: randomUUID(), reply: greeting(ctx, "chat") };
 }
 
 export async function webChatTurn(salonId: string, sessionId: string, text: string) {
@@ -48,7 +47,7 @@ export async function webChatTurn(salonId: string, sessionId: string, text: stri
     // first message of this chat → create the conversation record now
     const { data, error } = await db
       .from("calls")
-      .insert({ id: sessionId, salon_id: salonId, channel: "web", started_at: new Date().toISOString(), transcript: `AI: ${webGreeting(greeting(ctx))}` })
+      .insert({ id: sessionId, salon_id: salonId, channel: "web", started_at: new Date().toISOString(), transcript: `AI: ${greeting(ctx, "chat")}` })
       .select("id, salon_id, channel, agent_state, transcript")
       .single();
     if (error) throw error;
@@ -58,7 +57,7 @@ export async function webChatTurn(salonId: string, sessionId: string, text: stri
   const state = (call.agent_state ?? {}) as State;
   if ((state.turns ?? 0) >= MAX_TURNS) return { reply: "This chat has reached its limit. Please call the studio and we'll be happy to help." };
 
-  const instructions = buildPrompt(ctx, { channel: "web" });
+  const instructions = buildPrompt(ctx, { mode: "chat" });
   const toolCtx = { ctx, channel: "web" as const, callId: call.id, callerPhone: null };
 
   let input: OpenAI.Responses.ResponseInput = [{ role: "user", content: text }];

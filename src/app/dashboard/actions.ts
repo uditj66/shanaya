@@ -35,7 +35,12 @@ export async function setBookingStatus(form: FormData) {
   const { supabase, salon } = await requireSalon();
   const status = s(form, "status") as "completed" | "no_show" | "cancelled";
   if (status === "cancelled") {
-    await cancelBooking(supabase, { salonId: salon.id, reference: s(form, "reference"), reason: "Cancelled by staff" });
+    try {
+      await cancelBooking(supabase, { salonId: salon.id, reference: s(form, "reference"), reason: "Cancelled by staff" });
+    } catch (e) {
+      // already cancelled or not found: refresh the list instead of showing an error page
+      if (!(e instanceof BookingError)) throw e;
+    }
   } else {
     await supabase.from("bookings").update({ status }).eq("salon_id", salon.id).eq("reference", s(form, "reference"));
   }

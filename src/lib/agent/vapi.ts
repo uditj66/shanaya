@@ -1,12 +1,13 @@
 // Shanaya on Vapi.
 // Preferred setup: ONE saved assistant in the Vapi dashboard (VAPI_ASSISTANT_ID). The owner edits her voice,
 // model, greeting and personality there; every call (phone or website) uses that same assistant, and this
-// server only adds live knowledge + which branch's line was reached (assistantOverrides).
+// server only adds live knowledge + a SIGNED branch id (assistantOverrides.variableValues).
 // Fallback (no saved assistant): a full transient assistant built here.
 import type { SalonContext } from "./context";
-import { brandName, buildKnowledge, buildPrompt, greeting, personaPrompt } from "./prompt";
+import { brandName, buildKnowledge, buildPrompt, greeting, personaPrompt, type ConversationMode } from "./prompt";
 import { toolDefs } from "./tool-defs";
 import { buildVoice } from "./voices";
+import { signSalon } from "./call-signature";
 
 export function appUrl() {
   return (process.env.PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -38,52 +39,72 @@ const transferTool = () => ({
   ],
 });
 
+/**
+ * Messages Vapi sends to our server. This list REPLACES Vapi's defaults, so every message the
+ * webhook handles must be here (a missing entry fails silently, e.g. transfers never reach us).
+ */
+export const SERVER_MESSAGES = ["tool-calls", "end-of-call-report", "transfer-destination-request"];
+
 /** Human-feel settings shared by the saved and the transient assistant. */
 const conversationSettings = {
   transcriber: { provider: "deepgram", model: "nova-3", language: "en" },
   startSpeakingPlan: { smartEndpointingPlan: { provider: "livekit", waitFunction: "20 + 500 * sqrt(x) + 2500 * x^3" } },
   stopSpeakingPlan: { numWords: 0, voiceSeconds: 0.2, backoffSeconds: 1 },
   backgroundSound: "off",
-  serverMessages: ["tool-calls", "end-of-call-report"],
+  serverMessages: SERVER_MESSAGES,
   endCallFunctionEnabled: true,
   silenceTimeoutSeconds: 30,
   maxDurationSeconds: 900,
 };
 
 /** The saved assistant as first created in Vapi. After that, the owner edits it in the Vapi dashboard. */
-export function savedAssistantDefinition(agentName = "Shanaya", brand = "Lumière Facial Studio & Spa") {
+export function savedAssistantDefinition() {
   return {
-    name: `${agentName} · ${brand}`.slice(0, 40),
-    firstMessage: `Hello, thank you for calling {{brand_name}}. This is ${agentName}. This call may be recorded for quality and booking purposes. How may I pamper you today?`,
+    name: "Shanaya · AI receptionist",
+    // {{agent_name}} / {{brand_name}} come from each salon's Settings, so a rename applies to voice too.
+    firstMessage:
+      "Hello, thank you for calling {{brand_name}}. This is {{agent_name}}. This call may be recorded for quality and booking purposes. How may I pamper you today?",
     model: {
       provider: "openai",
-      model: "gpt-4o",
+      model: "gpt-5.6-terra",
       temperature: 0.6,
-      messages: [{ role: "system", content: `${personaPrompt("voice", agentName, brand)}\n\n# KNOWLEDGE (live, filled in by the Shanaya app on every call; do not edit)\n{{knowledge}}` }],
+      messages: [
+        {
+          role: "system",
+          content: `${personaPrompt("voice", "{{agent_name}}", "{{brand_name}}")}\n\n# KNOWLEDGE (live, filled in by the Shanaya app on every call; do not edit)\n{{knowledge}}`,
+        },
+      ],
       tools: [...functionTools(), transferTool()],
     },
     voice: { provider: "vapi", voiceId: "Naina" },
-    endCallMessage: `Thank you for calling {{brand_name}}. Have a lovely day.`,
+    endCallMessage: "Thank you for calling {{brand_name}}. Have a lovely day.",
     server: serverConfig(),
     ...conversationSettings,
   };
 }
 
+/** Vapi renders variableValues with Liquid; owner-written text must not be able to inject template code. */
+export const escapeLiquid = (s: string) => s.replace(/\{\{/g, "{ {").replace(/\}\}/g, "} }").replace(/\{%/g, "{ %").replace(/%\}/g, "% }");
+
 /** What every call (phone or web) sends to Vapi for this branch's line. */
 export function vapiCallConfig(ctx: SalonContext, callerPhone: string | null, channel: VoiceChannel = "phone") {
   const assistantId = process.env.VAPI_ASSISTANT_ID;
   if (!assistantId) return { assistant: buildVapiAssistant(ctx, callerPhone, channel) };
+  const mode: ConversationMode = channel === "phone" ? "phone" : "web-voice";
   return {
     assistantId,
     assistantOverrides: {
       variableValues: {
-        knowledge: buildKnowledge(ctx, { callerPhone }),
-        brand_name: brandName(ctx),
-        entry_branch: ctx.salon.area ?? ctx.salon.name,
+        knowledge: escapeLiquid(buildKnowledge(ctx, { callerPhone, mode })),
+        brand_name: escapeLiquid(brandName(ctx)),
+        agent_name: escapeLiquid(ctx.salon.agent_name || "Shanaya"),
+        entry_branch: escapeLiquid(ctx.salon.area ?? ctx.salon.name),
         salon_id: ctx.salon.id,
+        channel,
+        ...signSalon(ctx.salon.id),
       },
       // No server override here: Vapi only applies the webhook secret (credentialId) from the saved
-      // assistant's own server setting. The webhook finds the branch from variableValues.salon_id.
+      // assistant's own server setting. The webhook finds the branch from the SIGNED variableValues.
       metadata: { salonId: ctx.salon.id, channel },
     },
   };
@@ -94,13 +115,14 @@ export function buildVapiAssistant(ctx: SalonContext, callerPhone: string | null
   const { salon } = ctx;
   const tools: Record<string, unknown>[] = functionTools();
   if (channel === "phone") tools.push(transferTool());
+  const mode: ConversationMode = channel === "phone" ? "phone" : "web-voice";
   return {
     name: salon.name.slice(0, 40),
-    firstMessage: greeting(ctx),
+    firstMessage: greeting(ctx, "voice"),
     model: {
       provider: "openai",
       model: salon.phone_llm_model || "gpt-4o",
-      messages: [{ role: "system", content: buildPrompt(ctx, { channel: "phone", callerPhone }) }],
+      messages: [{ role: "system", content: buildPrompt(ctx, { mode, callerPhone }) }],
       tools,
     },
     voice: buildVoice(salon),

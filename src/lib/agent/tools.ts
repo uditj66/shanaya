@@ -4,7 +4,7 @@ import "server-only";
 import { adminClient } from "../supabase/admin";
 import { BookingError, cancelBooking, createBooking, getSlots, nextAvailableDate, rescheduleBooking } from "../booking-service";
 import { pickSlots, type Slot } from "../availability";
-import { countryCodeFor, fmtDate, fmtTime, isDate, isTime, normalizePhone } from "../time";
+import { countryCodeFor, fmtDate, fmtTime, isDate, isTime, normalizePhone, todayIn } from "../time";
 import { displayName, loadSalonContext, type SalonContext } from "./context";
 import { toolDefs, type ToolDef } from "./tool-defs";
 import { logEvent } from "../events";
@@ -84,17 +84,29 @@ function phoneFor(t: ToolContext, given: unknown) {
 
 const cleanRef = (r: unknown) => str(r).toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-/** Find a booking by reference anywhere in the brand, and check it belongs to this phone number. */
-async function ownedBooking(t: ToolContext, reference: unknown, phone: string) {
+/**
+ * Find a booking by reference anywhere in the brand that belongs to THIS phone number.
+ * References are only unique per branch, so match on the phone too (prefer a confirmed booking).
+ */
+async function ownedBooking(t: ToolContext, reference: unknown, phone: string, confirmedOnly = true) {
+  if (!phone) throw new BookingError("not_found", "Ask for her mobile number and booking reference.");
   const { data } = await adminClient()
     .from("bookings")
-    .select("id, salon_id, reference, status, customer:customer_id (phone)")
+    .select("id, salon_id, reference, status, starts_at, customer:customer_id (phone, name)")
     .in("salon_id", brandIds(t))
     .eq("reference", cleanRef(reference));
-  const b = (data ?? []).find((x) => x.status === "confirmed") ?? data?.[0];
-  if (!b) throw new BookingError("not_found", "No booking with that reference");
-  if (!phone || b.customer?.phone !== phone) throw new BookingError("not_found", "That reference doesn't match this phone number");
+  const mine = (data ?? []).filter((x) => x.customer?.phone === phone);
+  const b = mine.find((x) => x.status === "confirmed") ?? (confirmedOnly ? undefined : mine[0]);
+  if (!b) throw new BookingError("not_found", "That booking reference doesn't match this mobile number.");
   return b;
+}
+
+/** Website guests have no caller ID: personal data needs a booking reference that belongs to her number. */
+async function webVerified(t: ToolContext, a: Args, phone: string) {
+  if (t.channel !== "web") return true;
+  if (!str(a.reference)) return false;
+  await ownedBooking(t, a.reference, phone, false);
+  return true;
 }
 
 const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = {
@@ -106,10 +118,15 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
     if (consult) return consult;
     const date = str(a.date);
     if (!isDate(date)) return { error: "date must be YYYY-MM-DD" };
+    if (date < todayIn(ctx.salon.timezone)) return { error: "That date is in the past. Use the calendar in the knowledge to pick an upcoming date." };
     const staffId = staffIdByName(ctx, str(a.therapist_name));
     if (str(a.therapist_name) && !staffId) return { error: `No therapist named ${str(a.therapist_name)} at ${ctx.salon.area ?? "this branch"}` };
 
     const db = adminClient();
+    if (staffId) {
+      const { count } = await db.from("staff_services").select("*", { count: "exact", head: true }).eq("staff_id", staffId).eq("service_id", svc.id);
+      if (!count) return { error: `${str(a.therapist_name)} doesn't perform ${svc.name}. Suggest a specialist who does, or ask if any available therapist is fine.` };
+    }
     const branch = displayName(ctx.salon);
     const { slots } = await getSlots(db, { salonId: ctx.salon.id, serviceId: svc.id, date, staffId });
     if (slots.length) {
@@ -167,6 +184,9 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
   async guest_history(t, a) {
     const phone = phoneFor(t, a.phone);
     if (phone.length < 10) return { error: "Ask the guest for her mobile number." };
+    if (!(await webVerified(t, a, phone))) {
+      return { error: "For privacy, past visits are only shared online with a booking reference. Ask her for any past booking reference, or just ask which therapist she'd like." };
+    }
     const db = adminClient();
     const { data: customers } = await db.from("customers").select("id, name").in("salon_id", brandIds(t)).eq("phone", phone);
     if (!customers?.length) return { visits: [], message: "First visit: no previous bookings with this number. Welcome her warmly." };
@@ -209,6 +229,16 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
   async find_appointments(t, a) {
     const phone = phoneFor(t, a.phone);
     if (phone.length < 10) return { error: "Ask the guest for her mobile number." };
+    if (t.channel === "web") {
+      // No caller ID online: never list someone's bookings from a phone number alone.
+      if (!str(a.reference)) return { error: "For privacy, ask for her booking reference (from her confirmation) as well as her mobile number." };
+      const b = await ownedBooking(t, a.reference, phone);
+      const ctx = await branchCtx(t, b.salon_id);
+      return {
+        guest: b.customer?.name,
+        appointments: [{ reference: b.reference, branch: displayName(ctx.salon), date: fmtDate(b.starts_at, ctx.salon.timezone), time: fmtTime(b.starts_at, ctx.salon.timezone) }],
+      };
+    }
     const db = adminClient();
     const { data: customers } = await db.from("customers").select("id, name, salon_id").in("salon_id", brandIds(t)).eq("phone", phone);
     if (!customers?.length) return { appointments: [], message: "No bookings found with that number." };

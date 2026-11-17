@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireSalon } from "@/lib/session";
-import { hoursAgo } from "@/lib/time";
+import { healthEvents } from "@/lib/health";
 import { signOut } from "../login/actions";
 import { LiveRefresh } from "./live-refresh";
 import { SalonSwitcher } from "./salon-switcher";
@@ -18,18 +18,14 @@ const nav = [
 ] as const;
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { salon, salons, user, supabase } = await requireSalon();
+  const { salon, salons, user, supabase, role } = await requireSalon();
   const { count: openCallbacks } = await supabase
     .from("callbacks")
     .select("*", { count: "exact", head: true })
     .eq("salon_id", salon.id)
     .eq("status", "open");
-  const { count: recentIssues } = await supabase
-    .from("agent_events")
-    .select("*", { count: "exact", head: true })
-    .eq("salon_id", salon.id)
-    .neq("kind", "cap_reached")
-    .gte("created_at", hoursAgo(24));
+  // same count as the Health page (branch + chain-wide problems for owners, daily limits excluded)
+  const { recentProblems: recentIssues } = await healthEvents(supabase, salon.id, role);
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">

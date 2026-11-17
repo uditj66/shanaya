@@ -33,7 +33,7 @@ export const toolDefs: ToolDef[] = [
         date: { type: "string", description: "YYYY-MM-DD" },
         time: { type: "string", description: "HH:MM 24h, one of the times returned by check_availability" },
         customer_name: { type: "string" },
-        phone: { type: "string", description: "Guest's mobile number (optional on phone calls: the caller's number is used)" },
+        phone: { type: "string", description: "Her mobile number. Optional only on phone calls with caller ID (the caller's number is used)" },
         therapist_name: { type: "string", description: "Optional, only if the guest asked for someone" },
         notes: { type: "string", description: "Skin concerns, pregnancy, allergies, occasion, special requests" },
       },
@@ -43,13 +43,28 @@ export const toolDefs: ToolDef[] = [
   {
     name: "guest_history",
     description:
-      "Look up a returning guest's past visits at any Lumière branch: which treatment, which branch, and exactly which therapist, doctor or beautician served her. Use it when she wants 'the same person as last time' or can't remember the name.",
-    parameters: { type: "object", properties: { phone: { type: "string", description: "Optional on phone calls (caller's number is used)" } }, required: [] },
+      "Look up a returning guest's past visits at any branch of the brand: which treatment, which branch, and exactly which therapist, doctor or beautician served her. Use it when she wants 'the same person as last time' or can't remember the name. On the website a past booking reference is required.",
+    parameters: {
+      type: "object",
+      properties: {
+        phone: { type: "string", description: "Her mobile number. Optional only on phone calls with caller ID" },
+        reference: { type: "string", description: "Any of her booking references (required on the website)" },
+      },
+      required: [],
+    },
   },
   {
     name: "find_appointments",
-    description: "List the guest's upcoming appointments at any Lumière branch, by mobile number.",
-    parameters: { type: "object", properties: { phone: { type: "string", description: "Optional on phone calls" } }, required: [] },
+    description:
+      "Find the guest's upcoming appointments at any branch of the brand. On phone calls the caller's number is enough; on the website (no caller ID) a booking reference plus mobile number is required.",
+    parameters: {
+      type: "object",
+      properties: {
+        phone: { type: "string", description: "Her mobile number. Optional only on phone calls with caller ID" },
+        reference: { type: "string", description: "Booking reference (required on the website)" },
+      },
+      required: [],
+    },
   },
   {
     name: "reschedule_appointment",
@@ -60,7 +75,7 @@ export const toolDefs: ToolDef[] = [
         reference: { type: "string", description: "Booking reference, e.g. 3FA9C1" },
         new_date: { type: "string", description: "YYYY-MM-DD" },
         new_time: { type: "string", description: "HH:MM 24h" },
-        phone: { type: "string", description: "Guest's mobile number, used to verify the booking (optional on phone calls)" },
+        phone: { type: "string", description: "Her mobile number, used to verify the booking. Optional only on phone calls with caller ID" },
       },
       required: ["reference", "new_date", "new_time"],
     },
@@ -73,7 +88,7 @@ export const toolDefs: ToolDef[] = [
       properties: {
         reference: { type: "string" },
         reason: { type: "string" },
-        phone: { type: "string", description: "Guest's mobile number, used to verify the booking (optional on phone calls)" },
+        phone: { type: "string", description: "Her mobile number, used to verify the booking. Optional only on phone calls with caller ID" },
       },
       required: ["reference"],
     },
