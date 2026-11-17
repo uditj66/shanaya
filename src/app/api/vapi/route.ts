@@ -5,7 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminClient } from "@/lib/supabase/admin";
 import { loadSalonContext } from "@/lib/agent/context";
-import { buildVapiAssistant } from "@/lib/agent/vapi";
+import { vapiCallConfig } from "@/lib/agent/vapi";
 import { runTool } from "@/lib/agent/tools";
 import { normalizePhone } from "@/lib/time";
 
@@ -23,6 +23,8 @@ function authorised(req: NextRequest) {
 async function salonIdFor(req: NextRequest, msg: VapiMessage) {
   const fromQuery = req.nextUrl.searchParams.get("salon");
   if (fromQuery) return fromQuery;
+  const fromCall = msg.call?.assistantOverrides?.variableValues?.salon_id ?? msg.call?.assistantOverrides?.metadata?.salonId;
+  if (fromCall) return String(fromCall);
   const phoneNumberId = msg.call?.phoneNumberId ?? msg.phoneNumber?.id;
   if (!phoneNumberId) return null;
   const { data } = await adminClient().from("salons").select("id").eq("vapi_phone_number_id", phoneNumberId).maybeSingle();
@@ -30,7 +32,11 @@ async function salonIdFor(req: NextRequest, msg: VapiMessage) {
 }
 
 /** Website "Talk" calls arrive as Vapi web calls; phone calls as inbound/outbound phone calls. */
-const isWebCall = (msg: VapiMessage) => msg.call?.type === "webCall" || msg.call?.assistant?.metadata?.channel === "web" || msg.assistant?.metadata?.channel === "web";
+const isWebCall = (msg: VapiMessage) =>
+  msg.call?.type === "webCall" ||
+  msg.call?.assistantOverrides?.metadata?.channel === "web" ||
+  msg.call?.assistant?.metadata?.channel === "web" ||
+  msg.assistant?.metadata?.channel === "web";
 
 async function callRowId(salonId: string, msg: VapiMessage) {
   const externalId = msg.call?.id;
@@ -71,7 +77,8 @@ export async function POST(req: NextRequest) {
       if (!ctx) return NextResponse.json({ error: "Sorry, this number is not set up yet." });
       await callRowId(salonId, msg);
       const caller = msg.call?.customer?.number ?? null;
-      return NextResponse.json({ assistant: buildVapiAssistant(ctx, caller) });
+      // Saved "Shanaya" assistant from the Vapi dashboard + this branch's live knowledge.
+      return NextResponse.json(vapiCallConfig(ctx, caller, "phone"));
     }
 
     case "tool-calls": {

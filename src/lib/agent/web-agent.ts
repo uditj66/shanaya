@@ -77,7 +77,10 @@ export async function webChatTurn(salonId: string, sessionId: string, text: stri
     previous = response.id;
     const calls = response.output.filter((o): o is OpenAI.Responses.ResponseFunctionToolCall => o.type === "function_call");
     if (!calls.length) {
-      reply = response.output_text?.trim() || "";
+      // Use only the final assistant message (some models return more than one message item).
+      const messages = response.output.filter((o): o is OpenAI.Responses.ResponseOutputMessage => o.type === "message");
+      const last = messages[messages.length - 1];
+      reply = (last?.content ?? []).map((c) => (c.type === "output_text" ? c.text : "")).join("").trim() || response.output_text?.trim() || "";
       break;
     }
     input = await Promise.all(

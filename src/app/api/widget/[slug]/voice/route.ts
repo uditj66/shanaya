@@ -3,7 +3,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminClient } from "@/lib/supabase/admin";
 import { loadSalonContext } from "@/lib/agent/context";
-import { buildVapiAssistant } from "@/lib/agent/vapi";
+import { vapiCallConfig } from "@/lib/agent/vapi";
 import { clientIp, rateLimited } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -19,5 +19,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   const ctx = await loadSalonContext(db, salon.id);
   if (!ctx) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json({ assistant: buildVapiAssistant(ctx, null, "web") }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(vapiCallConfig(ctx, null, "web"), { headers: { "Cache-Control": "no-store" } });
 }

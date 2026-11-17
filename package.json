@@ -10,7 +10,8 @@
     "test": "vitest run",
     "seed:owner": "tsx scripts/seed-owner.mts",
     "smoke": "tsx scripts/smoke-test.mts",
-    "seed:chain": "tsx scripts/seed-chain.mts"
+    "seed:chain": "tsx scripts/seed-chain.mts",
+    "vapi:assistant": "tsx scripts/vapi-assistant.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

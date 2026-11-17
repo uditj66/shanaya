@@ -17,6 +17,7 @@ const { data: hydra } = await db.from("services").select("id").eq("salon_id", "1
 const HYDRA = hydra!.id as string;
 
 const callId = `smoke-${Date.now()}`;
+const juhuRefs: string[] = [];
 const caller = "+919000012345";
 const call = { id: callId, phoneNumberId: "smoke-test-number", customer: { number: caller } };
 let ok = 0;
@@ -24,12 +25,20 @@ const pass = (m: string) => { ok++; console.log(`  ✓ ${m}`); };
 const fail = (m: string, extra?: unknown) => { console.error(`  ✗ ${m}`, extra ?? ""); process.exitCode = 1; };
 
 async function vapi(message: Record<string, unknown>, query = "") {
-  const r = await fetch(`${APP}/api/vapi${query}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(secret ? { "x-vapi-secret": secret } : {}) },
-    body: JSON.stringify({ message: { call, ...message } }),
-  });
-  return { status: r.status, body: await r.json() };
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const r = await fetch(`${APP}/api/vapi${query}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(secret ? { "x-vapi-secret": secret } : {}) },
+        body: JSON.stringify({ message: { call, ...message } }),
+      });
+      return { status: r.status, body: await r.json() };
+    } catch (e) {
+      // flaky networks drop connections; read-only checks and idempotent retries are safe here
+      if (attempt >= 3) throw e;
+      await new Promise((res) => setTimeout(res, 1500 * attempt));
+    }
+  }
 }
 async function tool(name: string, args: Record<string, unknown>) {
   const { body } = await vapi({ type: "tool-calls", toolCallList: [{ id: `t-${name}`, type: "function", function: { name, arguments: args } }] }, `?salon=${SALON}`);
@@ -48,9 +57,25 @@ await db.from("salons").update({ vapi_phone_number_id: "smoke-test-number" }).eq
 async function run() {
   // 1. Incoming call → assistant config
   const a = await vapi({ type: "assistant-request" });
-  if (a.body.assistant?.model?.messages?.[0]?.content?.includes("Lumière")) pass("assistant-request returns the salon's live assistant");
+  const knowledge: string = a.body.assistantOverrides?.variableValues?.knowledge ?? a.body.assistant?.model?.messages?.[0]?.content ?? "";
+  if (a.body.assistantId) pass("assistant-request returns the saved Vapi assistant + live knowledge overrides");
+  else if (a.body.assistant) pass("assistant-request returns a transient assistant (no VAPI_ASSISTANT_ID)");
   else fail("assistant-request", a);
-  if (a.body.assistant?.model?.tools?.length >= 6) pass(`assistant has ${a.body.assistant.model.tools.length} tools`);
+  const branchCount = (knowledge.match(/branch_id:/g) ?? []).length;
+  if (knowledge.includes("Lumière") && branchCount > 1) pass(`knowledge covers ${branchCount} branches`);
+  else fail("knowledge missing branches", branchCount);
+
+  // Book at ANOTHER branch (Juhu) from the Bandra line, using the shared service code
+  const { data: juhu } = await db.from("salons").select("id").eq("branch_code", "MUM-JUH").single();
+  const avJ = await tool("check_availability", { branch_id: juhu!.id, service: "FAC001", date: DATE });
+  const tJ = avJ.available?.[0]?.time ?? avJ.next_available?.[0]?.time;
+  const dJ = avJ.available?.length ? DATE : avJ.next_available_date;
+  const bJ = tJ ? await tool("book_appointment", { branch_id: juhu!.id, service: "FAC001", date: dJ, time: tJ, customer_name: "Smoke Juhu Guest" }) : avJ;
+  if (bJ.success && /Juhu/.test(bJ.branch)) {
+    pass(`cross-branch booking from the Bandra line at ${bJ.branch} (${bJ.reference})`);
+    juhuRefs.push(bJ.reference);
+  }
+  else fail("cross-branch booking", bJ);
 
   // 2. Availability
   const av = await tool("check_availability", { service_id: HYDRA, date: DATE, preferred_time: "17:00" });
@@ -114,7 +139,7 @@ async function run() {
   }
 
   // cleanup
-  const { data: rows } = await db.from("bookings").select("id").eq("salon_id", SALON).in("reference", refs);
+  const { data: rows } = await db.from("bookings").select("id").in("reference", [...refs, ...juhuRefs]);
   await db.from("bookings").delete().in("id", (rows ?? []).map((r) => r.id));
   await db.from("callbacks").delete().eq("call_id", row?.id ?? "");
   await db.from("calls").delete().eq("external_id", callId);

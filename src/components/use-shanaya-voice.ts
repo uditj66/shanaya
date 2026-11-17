@@ -42,7 +42,7 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
       if (!key) throw new Error("Voice calls are not set up yet.");
       const res = await fetch(configUrl, { cache: "no-store" });
       const data = await res.json();
-      if (!res.ok || !data.assistant) throw new Error(data.error ?? "Could not start the call.");
+      if (!res.ok || !(data.assistantId || data.assistant)) throw new Error(data.error ?? "Could not start the call.");
 
       if (!vapiRef.current) {
         const { default: VapiClient } = await import("@vapi-ai/web");
@@ -66,7 +66,9 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
         });
         vapiRef.current = vapi;
       }
-      await vapiRef.current.start(data.assistant as any);
+      // Saved "Shanaya" assistant from the Vapi dashboard + live knowledge overrides (or a full fallback assistant).
+      if (data.assistantId) await vapiRef.current.start(data.assistantId, data.assistantOverrides as any);
+      else await vapiRef.current.start(data.assistant as any);
     } catch (e) {
       setError(errorText(e));
       setStatus("error");

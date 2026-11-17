@@ -2,6 +2,7 @@ import { requireSalon } from "@/lib/session";
 import { appUrl } from "@/lib/agent/vapi";
 import { connectPhoneNumber, saveSettings } from "./actions";
 import { VoicePicker } from "./voice-picker";
+import { VapiManaged } from "./vapi-managed";
 import { Button, Card, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -61,6 +62,9 @@ export default async function Settings({ searchParams }: { searchParams: Promise
           <Field label="Greeting" hint="Leave blank for the default"><Input name="agent_greeting" defaultValue={salon.agent_greeting ?? ""} /></Field>
           <Field label="Policies"><Textarea name="policies" defaultValue={salon.policies} /></Field>
           <Field label="Offers, FAQs and extra instructions"><Textarea name="agent_instructions" defaultValue={salon.agent_instructions} /></Field>
+          {process.env.VAPI_ASSISTANT_ID ? (
+            <VapiManaged assistantId={process.env.VAPI_ASSISTANT_ID} agentName={salon.agent_name} />
+          ) : (
           <VoicePicker
             provider={salon.voice_provider}
             voiceId={salon.voice_id}
@@ -68,6 +72,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
             speed={Number((salon.voice_settings as { speed?: number } | null)?.speed ?? 1)}
             agentName={salon.agent_name}
           />
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Voice conversation model" hint="Phone and website voice calls (as listed in Vapi)"><Input name="phone_llm_model" defaultValue={salon.phone_llm_model} /></Field>
             <Field label="Typed chat model (OpenAI)"><Input name="llm_model" defaultValue={salon.llm_model} /></Field>
