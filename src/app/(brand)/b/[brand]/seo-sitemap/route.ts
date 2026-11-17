@@ -1,4 +1,5 @@
-// /sitemap.xml on the brand domain (proxy rewrites it here). Cached with the brand data and refreshed by the same tags.
+// /sitemap.xml on the brand domain: proxy.ts maps it here. (A folder literally named "sitemap.xml" collides with the
+// sitemap file convention and is not routed on Vercel.) Cached with the brand data and refreshed by the same tags.
 import { cacheLife, cacheTag } from "next/cache";
 import { getBrand, getMenu, getStudios, getTeam, tags } from "@/lib/brand/data";
 
@@ -22,7 +23,7 @@ async function sitemap(slug: string) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
 
-export async function GET(_req: Request, { params }: RouteContext<"/b/[brand]/sitemap.xml">) {
+export async function GET(_req: Request, { params }: RouteContext<"/b/[brand]/seo-sitemap">) {
   const xml = await sitemap((await params).brand);
   if (!xml) return new Response("Not found", { status: 404 });
   return new Response(xml, { headers: { "Content-Type": "application/xml; charset=utf-8" } });
