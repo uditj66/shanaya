@@ -9,6 +9,7 @@ export type SalonContext = {
   staff: Pick<Tables<"staff">, "id" | "name" | "title">[];
   packages: Tables<"packages">[];
   branches: SisterBranch[]; // other branches of the same brand (so Shanaya can refer callers)
+  team?: { salon_id: string; name: string; title: string | null }[]; // every therapist/doctor/beautician across the brand
 };
 
 /** Everything the agent needs to know about one branch. */
@@ -28,7 +29,9 @@ export async function loadSalonContext(db: SupabaseClient<Database>, salonId: st
         .neq("id", salon.id)
         .order("city")
     : { data: [] as SisterBranch[] };
-  return { salon, services: services ?? [], staff: staff ?? [], packages: packages ?? [], branches: branches ?? [] };
+  const ids = [salon.id, ...(branches ?? []).map((b) => b.id)];
+  const { data: team } = await db.from("staff").select("salon_id, name, title").in("salon_id", ids).eq("active", true).order("sort_order");
+  return { salon, services: services ?? [], staff: staff ?? [], packages: packages ?? [], branches: branches ?? [], team: team ?? [] };
 }
 
 /** "Lumière Facial Studio & Spa, Bandra West" — how the branch introduces itself. */

@@ -85,3 +85,18 @@ describe("fallback transient assistant (no saved assistant)", () => {
     expect(VOICE_PRESETS.every((p) => /Indian/i.test(p.label + p.description))).toBe(true);
   });
 });
+
+describe("favourite therapist", () => {
+  it("persona always asks for a preferred therapist and uses guest_history for 'same as last time'", () => {
+    for (const mode of ["voice", "chat"] as const) {
+      const p = personaPrompt(mode);
+      expect(p).toMatch(/favourite therapist, doctor or beautician/i);
+      expect(p).toContain("guest_history");
+    }
+  });
+
+  it("knowledge lists each branch's team so names can be matched exactly", () => {
+    const k = buildKnowledge({ ...ctx, team: [{ salon_id: "s2", name: "Meera", title: "Skin Therapist" }] }, { now: NOW });
+    expect(k).toContain("Team: Meera (Skin Therapist)");
+  });
+});

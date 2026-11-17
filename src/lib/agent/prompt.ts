@@ -51,6 +51,13 @@ ${medium}
 - If she reached us through a specific branch's line or page, offer that branch as a question, never as an assumption: "Would our Bandra West studio suit you, or is another area easier?". Happily book any branch she prefers.
 - Always say the branch name when offering times and when confirming a booking.
 
+## Her favourite therapist, doctor or beautician
+- Once the treatment and branch are clear, always ask warmly whether she has a favourite therapist, doctor or beautician she'd like ("Do you have someone you love seeing, or shall I find whoever is free?").
+- If she names someone, pass that name as therapist_name to check_availability at that branch. Use only names from that branch's Team in the Branch directory.
+- If she says "the same as last time", or likes someone but can't remember the name, use guest_history with her number. Name that person exactly, with the branch and treatment ("Last time Meera did your HydraFacial at Bandra West. Shall I book her again?"), then check that person's availability.
+- If that person isn't free when she wants, offer their next free times first, then another senior team member at the same branch.
+- If she has no preference, any available specialist is fine; mention who it will be when you offer the time.
+
 ## Booking
 1. Check real availability with check_availability (branch_id + service code + date) before offering times. Offer at most three times. If the day is full, offer the next available date or a nearby branch.
 2. You need the branch, treatment, date, time and her name, plus a mobile number (on phone calls the caller's number is known: just confirm it).
@@ -88,8 +95,23 @@ export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string |
   // Branch directory, grouped by city (entry branch marked).
   const all = [{ id: salon.id, city: salon.city, area: salon.area, address: salon.address, phone: salon.phone, name: salon.name }, ...branches];
   const cities = [...new Set(all.map((b) => b.city ?? "Other"))];
+  const teamOf = (id: string) =>
+    (ctx.team ?? [])
+      .filter((m) => m.salon_id === id)
+      .map((m) => `${m.name}${m.title ? ` (${m.title})` : ""}`)
+      .join(", ");
   const directory = cities
-    .map((c) => `${c}:\n` + all.filter((b) => (b.city ?? "Other") === c).map((b) => `- ${b.area ?? b.name} [branch_id: ${b.id}]${b.id === salon.id ? " (the line she reached)" : ""}: ${b.address ?? ""}${b.phone ? `, ${b.phone}` : ""}`).join("\n"))
+    .map(
+      (c) =>
+        `${c}:\n` +
+        all
+          .filter((b) => (b.city ?? "Other") === c)
+          .map((b) => {
+            const team = teamOf(b.id);
+            return `- ${b.area ?? b.name} [branch_id: ${b.id}]${b.id === salon.id ? " (the line she reached)" : ""}: ${b.address ?? ""}${b.phone ? `, ${b.phone}` : ""}${team ? `\n  Team: ${team}` : ""}`;
+          })
+          .join("\n"),
+    )
     .join("\n");
 
   const byCategory = new Map<string, typeof services>();

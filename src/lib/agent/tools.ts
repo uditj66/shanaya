@@ -163,6 +163,48 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
     };
   },
 
+  async guest_history(t, a) {
+    const phone = phoneFor(t, a.phone);
+    if (phone.length < 10) return { error: "Ask the guest for her mobile number." };
+    const db = adminClient();
+    const { data: customers } = await db.from("customers").select("id, name").in("salon_id", brandIds(t)).eq("phone", phone);
+    if (!customers?.length) return { visits: [], message: "First visit: no previous bookings with this number. Welcome her warmly." };
+    const { data } = await db
+      .from("bookings")
+      .select("starts_at, status, salon_id, salon:salon_id (brand_name, area, name, timezone), staff:staff_id (name, title), service:service_id (name, category)")
+      .in("customer_id", customers.map((c) => c.id))
+      .in("status", ["confirmed", "completed"])
+      .lt("starts_at", new Date().toISOString())
+      .order("starts_at", { ascending: false })
+      .limit(10);
+    const visits = (data ?? []).map((b) => ({
+      date: fmtDate(b.starts_at, b.salon?.timezone ?? t.ctx.salon.timezone),
+      branch: b.salon ? displayName(b.salon) : "",
+      branch_id: b.salon_id,
+      treatment: b.service?.name,
+      category: b.service?.category,
+      served_by: b.staff ? `${b.staff.name}${b.staff.title ? ` (${b.staff.title})` : ""}` : null,
+      therapist_name: b.staff?.name ?? null,
+    }));
+    if (!visits.length) return { guest: customers[0].name, visits: [], message: "No past visits yet (only upcoming ones)." };
+    // who she has seen most often, per branch
+    const counts = new Map<string, { name: string; branch: string; branch_id: string; times: number }>();
+    for (const v of visits) {
+      if (!v.therapist_name) continue;
+      const k = `${v.branch_id}:${v.therapist_name}`;
+      const c = counts.get(k) ?? { name: v.therapist_name, branch: v.branch, branch_id: v.branch_id, times: 0 };
+      c.times++;
+      counts.set(k, c);
+    }
+    return {
+      guest: customers[0].name,
+      last_visit: visits[0],
+      favourites: [...counts.values()].sort((x, y) => y.times - x.times).slice(0, 3),
+      visits: visits.slice(0, 5),
+      tip: "Offer the same person by name. Pass therapist_name (and that branch_id) to check_availability.",
+    };
+  },
+
   async find_appointments(t, a) {
     const phone = phoneFor(t, a.phone);
     if (phone.length < 10) return { error: "Ask the guest for her mobile number." };

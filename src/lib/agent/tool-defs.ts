@@ -41,6 +41,12 @@ export const toolDefs: ToolDef[] = [
     },
   },
   {
+    name: "guest_history",
+    description:
+      "Look up a returning guest's past visits at any Lumière branch: which treatment, which branch, and exactly which therapist, doctor or beautician served her. Use it when she wants 'the same person as last time' or can't remember the name.",
+    parameters: { type: "object", properties: { phone: { type: "string", description: "Optional on phone calls (caller's number is used)" } }, required: [] },
+  },
+  {
     name: "find_appointments",
     description: "List the guest's upcoming appointments at any Lumière branch, by mobile number.",
     parameters: { type: "object", properties: { phone: { type: "string", description: "Optional on phone calls" } }, required: [] },
