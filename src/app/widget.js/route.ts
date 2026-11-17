@@ -2,7 +2,6 @@
 // Adds a floating "Book now" button that opens the assistant in an iframe.
 import { appUrl } from "@/lib/agent/vapi";
 
-export const dynamic = "force-static";
 
 export function GET() {
   const base = appUrl();

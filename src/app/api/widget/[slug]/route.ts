@@ -6,7 +6,6 @@ import { startWebChat, webChatTurn } from "@/lib/agent/web-agent";
 import { clientIp, overDailyCap, rateLimited } from "@/lib/rate-limit";
 import { logEvent } from "@/lib/events";
 
-export const dynamic = "force-dynamic";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",

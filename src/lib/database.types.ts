@@ -114,6 +114,8 @@ export type Database = {
           timezone: string; transfer_phone: string | null; vapi_phone_number_id: string | null; voice_id: string | null; voice_model: string | null; voice_settings: Json;
           brand_name: string | null; city: string | null; area: string | null; branch_code: string | null; is_placeholder: boolean; guest_profiles: Json; daily_web_voice_cap: number; daily_chat_cap: number;
           voice_provider: string; website: string | null; widget_enabled: boolean;
+          brand_id: string | null; studio_slug: string | null; latitude: number | null; longitude: number | null; hero_image: string | null;
+          gallery: string[]; is_flagship: boolean; published: boolean;
         };
         Insert: {
           address?: string | null; agent_greeting?: string | null; agent_instructions?: string; agent_name?: string; business_hours?: Json;
@@ -122,9 +124,13 @@ export type Database = {
           timezone?: string; transfer_phone?: string | null; vapi_phone_number_id?: string | null; voice_id?: string | null; voice_model?: string | null; voice_settings?: Json;
           brand_name?: string | null; city?: string | null; area?: string | null; branch_code?: string | null; is_placeholder?: boolean; guest_profiles?: Json; daily_web_voice_cap?: number; daily_chat_cap?: number;
           voice_provider?: string; website?: string | null; widget_enabled?: boolean;
+          brand_id?: string | null; studio_slug?: string | null; latitude?: number | null; longitude?: number | null; hero_image?: string | null;
+          gallery?: string[]; is_flagship?: boolean; published?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["salons"]["Insert"]>;
-        Relationships: [];
+        Relationships: [
+          { foreignKeyName: "salons_brand_id_fkey"; columns: ["brand_id"]; isOneToOne: false; referencedRelation: "brands"; referencedColumns: ["id"] },
+        ];
       };
       services: {
         Row: {
@@ -143,8 +149,16 @@ export type Database = {
         ];
       };
       staff: {
-        Row: { active: boolean; color: string; created_at: string; id: string; name: string; salon_id: string; sort_order: number; title: string | null };
-        Insert: { active?: boolean; color?: string; created_at?: string; id?: string; name: string; salon_id: string; sort_order?: number; title?: string | null };
+        Row: {
+          active: boolean; color: string; created_at: string; id: string; name: string; salon_id: string; sort_order: number; title: string | null;
+          slug: string | null; bio: string; specialties: string[]; languages: string[]; years_experience: number | null; portrait: string | null;
+          portfolio: string[]; public_profile: boolean;
+        };
+        Insert: {
+          active?: boolean; color?: string; created_at?: string; id?: string; name: string; salon_id: string; sort_order?: number; title?: string | null;
+          slug?: string | null; bio?: string; specialties?: string[]; languages?: string[]; years_experience?: number | null; portrait?: string | null;
+          portfolio?: string[]; public_profile?: boolean;
+        };
         Update: Partial<Database["public"]["Tables"]["staff"]["Insert"]>;
         Relationships: [
           { foreignKeyName: "staff_salon_id_fkey"; columns: ["salon_id"]; isOneToOne: false; referencedRelation: "salons"; referencedColumns: ["id"] },
@@ -178,6 +192,113 @@ export type Database = {
           { foreignKeyName: "time_off_staff_id_fkey"; columns: ["staff_id"]; isOneToOne: false; referencedRelation: "staff"; referencedColumns: ["id"] },
         ];
       };
+      // ── Brand websites (migration 20261119000000_brand_site) ──
+      brands: {
+        Row: {
+          agent_name: string; created_at: string; currency: string; email: string | null; faqs: Json; full_name: string; id: string;
+          instagram: string | null; locale: string; name: string; nudge_settings: Json; phone: string | null; site_url: string | null;
+          slug: string; story: string; tagline: string;
+        };
+        Insert: {
+          agent_name?: string; created_at?: string; currency?: string; email?: string | null; faqs?: Json; full_name: string; id?: string;
+          instagram?: string | null; locale?: string; name: string; nudge_settings?: Json; phone?: string | null; site_url?: string | null;
+          slug: string; story?: string; tagline?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["brands"]["Insert"]>;
+        Relationships: [];
+      };
+      service_content: {
+        Row: { benefits: string[]; brand_id: string; code: string; featured: boolean; headline: string; image: string | null; ritual: string[]; slug: string; sort_order: number };
+        Insert: { benefits?: string[]; brand_id: string; code: string; featured?: boolean; headline?: string; image?: string | null; ritual?: string[]; slug: string; sort_order?: number };
+        Update: Partial<Database["public"]["Tables"]["service_content"]["Insert"]>;
+        Relationships: [];
+      };
+      testimonials: {
+        Row: {
+          brand_id: string; created_at: string; guest_name: string; id: string; is_sample: boolean; published: boolean; quote: string;
+          rating: number; salon_id: string | null; service_code: string | null; sort_order: number;
+        };
+        Insert: {
+          brand_id: string; created_at?: string; guest_name: string; id?: string; is_sample?: boolean; published?: boolean; quote: string;
+          rating?: number; salon_id?: string | null; service_code?: string | null; sort_order?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["testimonials"]["Insert"]>;
+        Relationships: [
+          { foreignKeyName: "testimonials_salon_id_fkey"; columns: ["salon_id"]; isOneToOne: false; referencedRelation: "salons"; referencedColumns: ["id"] },
+        ];
+      };
+      press: {
+        Row: { brand_id: string; headline: string; id: string; is_sample: boolean; publication: string; published: boolean; sort_order: number; url: string | null; year: number | null };
+        Insert: { brand_id: string; headline: string; id?: string; is_sample?: boolean; publication: string; published?: boolean; sort_order?: number; url?: string | null; year?: number | null };
+        Update: Partial<Database["public"]["Tables"]["press"]["Insert"]>;
+        Relationships: [];
+      };
+      offers: {
+        Row: {
+          brand_id: string; description: string; ends_on: string | null; id: string; image: string | null; is_sample: boolean; published: boolean;
+          service_code: string | null; sort_order: number; starts_on: string | null; terms: string; title: string;
+        };
+        Insert: {
+          brand_id: string; description: string; ends_on?: string | null; id?: string; image?: string | null; is_sample?: boolean; published?: boolean;
+          service_code?: string | null; sort_order?: number; starts_on?: string | null; terms?: string; title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["offers"]["Insert"]>;
+        Relationships: [];
+      };
+      memberships: {
+        Row: { benefits: string[]; brand_id: string; highlight: boolean; id: string; is_sample: boolean; name: string; period: string; price: number; published: boolean; sort_order: number };
+        Insert: { benefits?: string[]; brand_id: string; highlight?: boolean; id?: string; is_sample?: boolean; name: string; period?: string; price: number; published?: boolean; sort_order?: number };
+        Update: Partial<Database["public"]["Tables"]["memberships"]["Insert"]>;
+        Relationships: [];
+      };
+      lookbook_items: {
+        Row: {
+          after_image: string | null; before_image: string | null; brand_id: string; caption: string; category: string; id: string; image: string;
+          is_sample: boolean; published: boolean; service_code: string | null; sort_order: number; title: string;
+        };
+        Insert: {
+          after_image?: string | null; before_image?: string | null; brand_id: string; caption?: string; category: string; id?: string; image: string;
+          is_sample?: boolean; published?: boolean; service_code?: string | null; sort_order?: number; title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["lookbook_items"]["Insert"]>;
+        Relationships: [];
+      };
+      leads: {
+        Row: {
+          brand_id: string; consent_at: string; created_at: string; email: string | null; id: string; kind: string; message: string; name: string;
+          phone: string | null; salon_id: string | null; status: Database["public"]["Enums"]["enquiry_status"];
+        };
+        Insert: {
+          brand_id: string; consent_at: string; created_at?: string; email?: string | null; id?: string; kind: string; message?: string; name: string;
+          phone?: string | null; salon_id?: string | null; status?: Database["public"]["Enums"]["enquiry_status"];
+        };
+        Update: Partial<Database["public"]["Tables"]["leads"]["Insert"]>;
+        Relationships: [];
+      };
+      gift_card_requests: {
+        Row: {
+          amount: number; brand_id: string; consent_at: string; created_at: string; id: string; message: string; recipient_name: string;
+          salon_id: string | null; sender_email: string | null; sender_name: string; sender_phone: string; status: Database["public"]["Enums"]["enquiry_status"];
+        };
+        Insert: {
+          amount: number; brand_id: string; consent_at: string; created_at?: string; id?: string; message?: string; recipient_name: string;
+          salon_id?: string | null; sender_email?: string | null; sender_name: string; sender_phone: string; status?: Database["public"]["Enums"]["enquiry_status"];
+        };
+        Update: Partial<Database["public"]["Tables"]["gift_card_requests"]["Insert"]>;
+        Relationships: [];
+      };
+      job_applications: {
+        Row: {
+          brand_id: string; city: string; consent_at: string; created_at: string; email: string; experience_years: number | null; id: string;
+          message: string; name: string; phone: string; role: string; status: Database["public"]["Enums"]["enquiry_status"];
+        };
+        Insert: {
+          brand_id: string; city: string; consent_at: string; created_at?: string; email: string; experience_years?: number | null; id?: string;
+          message?: string; name: string; phone: string; role: string; status?: Database["public"]["Enums"]["enquiry_status"];
+        };
+        Update: Partial<Database["public"]["Tables"]["job_applications"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -190,6 +311,7 @@ export type Database = {
       call_channel: "phone" | "web";
       callback_status: "open" | "done";
       member_role: "owner" | "manager" | "staff";
+      enquiry_status: "new" | "contacted" | "converted" | "closed";
     };
     CompositeTypes: { [_ in never]: never };
   };

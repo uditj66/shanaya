@@ -8,7 +8,6 @@ import { loadSalonContext } from "@/lib/agent/context";
 import { vapiCallConfig } from "@/lib/agent/vapi";
 import { rateLimited } from "@/lib/rate-limit";
 
-export const dynamic = "force-dynamic";
 
 export async function GET() {
   const { salon, user } = await requireSalon();

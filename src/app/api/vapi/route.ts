@@ -13,7 +13,6 @@ import { countryCodeFor, normalizePhone } from "@/lib/time";
 import { rateLimited } from "@/lib/rate-limit";
 import { logEvent } from "@/lib/events";
 
-export const dynamic = "force-dynamic";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type VapiMessage = { type: string; call?: any; phoneNumber?: any; toolCallList?: any[]; [k: string]: any };
