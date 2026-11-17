@@ -6,7 +6,6 @@ import { vapiCallConfig } from "@/lib/agent/vapi";
 import { clientIp, overDailyCap, rateLimited } from "@/lib/rate-limit";
 import { logEvent } from "@/lib/events";
 
-export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

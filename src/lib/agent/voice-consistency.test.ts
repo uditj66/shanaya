@@ -16,6 +16,7 @@ const salon = {
   voice_provider: "vapi", voice_id: "Naina", voice_model: null, voice_settings: { speed: 1 },
   vapi_phone_number_id: null, transfer_phone: "+919800000000", widget_enabled: true, created_at: "",
   brand_name: "Lumière Facial Studio & Spa", city: "Mumbai", area: "Bandra West", branch_code: "MUM-BAN", is_placeholder: true, guest_profiles: [], daily_web_voice_cap: 100, daily_chat_cap: 500,
+  brand_id: null, studio_slug: "bandra-west", latitude: null, longitude: null, hero_image: null, gallery: [], is_flagship: true, published: true,
 } as SalonContext["salon"];
 const ctx: SalonContext = {
   salon,
