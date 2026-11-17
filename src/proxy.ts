@@ -24,7 +24,8 @@ export async function proxy(request: NextRequest) {
     // Framework-generated URLs (e.g. opengraph-image) already carry the internal prefix: serve them as they are.
     if (pathname === `/b/${brand}` || pathname.startsWith(`/b/${brand}/`)) return NextResponse.next();
     const url = request.nextUrl.clone();
-    url.pathname = `/b/${brand}${pathname === "/" ? "" : pathname}`;
+    const internal = pathname === "/sitemap.xml" ? "/seo-sitemap" : pathname === "/" ? "" : pathname;
+    url.pathname = `/b/${brand}${internal}`;
     return NextResponse.rewrite(url);
   }
 
