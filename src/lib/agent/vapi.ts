@@ -82,8 +82,8 @@ export function vapiCallConfig(ctx: SalonContext, callerPhone: string | null, ch
         entry_branch: ctx.salon.area ?? ctx.salon.name,
         salon_id: ctx.salon.id,
       },
-      // tool calls and the end-of-call report come back to this server, tagged with the entry branch
-      server: serverConfig(ctx.salon.id),
+      // No server override here: Vapi only applies the webhook secret (credentialId) from the saved
+      // assistant's own server setting. The webhook finds the branch from variableValues.salon_id.
       metadata: { salonId: ctx.salon.id, channel },
     },
   };

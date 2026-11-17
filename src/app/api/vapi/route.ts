@@ -86,7 +86,9 @@ export async function POST(req: NextRequest) {
   if (!authorised(req)) {
     // record a few failures per hour (not every bot hit) so the owner sees misconfiguration
     if (!(await rateLimited("log:webhook_auth", 20, 3600))) {
-      await logEvent(req.nextUrl.searchParams.get("salon"), "webhook_auth", { ip: req.headers.get("x-forwarded-for") ?? null });
+      // header NAMES only (never values) so a misconfigured credential is easy to spot
+      const authHeaders = [...req.headers.keys()].filter((h) => /secret|auth|signature|vapi/i.test(h));
+      await logEvent(req.nextUrl.searchParams.get("salon"), "webhook_auth", { ip: req.headers.get("x-forwarded-for") ?? null, authHeaders });
     }
     return NextResponse.json({ error: "unauthorised" }, { status: 401 });
   }

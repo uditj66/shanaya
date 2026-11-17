@@ -33,12 +33,21 @@ afterEach(() => {
 describe("saved Vapi assistant (managed in the Vapi dashboard)", () => {
   it("phone and website use the SAME saved assistant with the same live knowledge", () => {
     process.env.VAPI_ASSISTANT_ID = "asst_123";
-    const phone = vapiCallConfig(ctx, "+919000012345", "phone") as { assistantId: string; assistantOverrides: { variableValues: Record<string, string>; server: unknown } };
-    const web = vapiCallConfig(ctx, null, "web") as typeof phone;
+    type Cfg = { assistantId: string; assistantOverrides: { variableValues: Record<string, string> } & Record<string, unknown> };
+    const phone = vapiCallConfig(ctx, "+919000012345", "phone") as unknown as Cfg;
+    const web = vapiCallConfig(ctx, null, "web") as unknown as Cfg;
     expect(phone.assistantId).toBe("asst_123");
     expect(web.assistantId).toBe(phone.assistantId); // voice, model, personality all come from this one assistant
     expect(stripCaller(web.assistantOverrides.variableValues.knowledge)).toBe(stripCaller(phone.assistantOverrides.variableValues.knowledge));
-    expect(web.assistantOverrides.server).toEqual(phone.assistantOverrides.server);
+    expect(phone.assistantOverrides.variableValues.salon_id).toBe("s1"); // how the webhook finds the branch
+  });
+
+  it("never overrides the server per call (Vapi would drop the webhook secret → 'unauthorised' tools)", () => {
+    process.env.VAPI_ASSISTANT_ID = "asst_123";
+    for (const ch of ["phone", "web"] as const) {
+      const cfg = vapiCallConfig(ctx, null, ch) as unknown as { assistantOverrides: Record<string, unknown> };
+      expect(cfg.assistantOverrides).not.toHaveProperty("server");
+    }
   });
 
   it("knowledge lists every branch with an id, so she can ask which branch", () => {
