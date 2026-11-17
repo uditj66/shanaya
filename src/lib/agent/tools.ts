@@ -7,6 +7,7 @@ import { pickSlots, type Slot } from "../availability";
 import { countryCodeFor, fmtDate, fmtTime, isDate, isTime, normalizePhone } from "../time";
 import { displayName, loadSalonContext, type SalonContext } from "./context";
 import { toolDefs, type ToolDef } from "./tool-defs";
+import { logEvent } from "../events";
 
 export { toolDefs, type ToolDef };
 
@@ -154,7 +155,7 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
       success: true,
       reference: booking.reference,
       branch: displayName(ctx.salon),
-      address: ctx.salon.address,
+      address: ctx.salon.is_placeholder ? `${ctx.salon.area}, ${ctx.salon.city}: the studio will share the exact address with your confirmation` : ctx.salon.address,
       service: booking.service?.name,
       therapist: booking.staff?.name,
       date: fmtDate(booking.starts_at, ctx.salon.timezone),
@@ -280,6 +281,7 @@ export async function runTool(t: ToolContext, name: string, args: Args) {
       };
     }
     console.error(`[tool ${name}]`, e);
+    await logEvent(t.ctx.salon.id, "tool_error", { tool: name, channel: t.channel, message: e instanceof Error ? e.message : String(e) });
     return { error: "Something went wrong on our side. Apologise briefly and offer to take a message for the team." };
   }
 }

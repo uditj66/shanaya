@@ -17,6 +17,7 @@ export default function Home() {
       <div className="mt-8 flex flex-wrap gap-3">
         <ButtonLink href="/login">Open dashboard</ButtonLink>
         <ButtonLink href="/w/lumiere" variant="outline">Try the demo assistant</ButtonLink>
+        <ButtonLink href="/privacy" variant="ghost">Privacy</ButtonLink>
       </div>
       <div className="mt-16 grid gap-4 md:grid-cols-3">
         {points.map(([t, d]) => (

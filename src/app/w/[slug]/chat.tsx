@@ -101,7 +101,9 @@ export function Chat({ slug, salonName, agentName }: { slug: string; salonName: 
         />
         <button disabled={busy || voice.live || !text.trim()} className="rounded-lg bg-ink px-4 text-sm font-medium text-ivory disabled:opacity-40">Send</button>
       </form>
-      <p className="bg-white pb-2 text-center text-[10px] text-muted">AI assistant · voice calls may be recorded for quality · your details are used only for your booking</p>
+      <p className="bg-white pb-2 text-center text-[10px] text-muted">AI assistant · voice calls may be recorded for quality · your details are used only for your booking ·{" "}
+        <a href="/privacy" target="_blank" className="underline hover:text-ink">Privacy</a>
+      </p>
     </div>
   );
 }

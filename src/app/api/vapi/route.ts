@@ -8,6 +8,8 @@ import { loadSalonContext } from "@/lib/agent/context";
 import { vapiCallConfig } from "@/lib/agent/vapi";
 import { runTool } from "@/lib/agent/tools";
 import { normalizePhone } from "@/lib/time";
+import { rateLimited } from "@/lib/rate-limit";
+import { logEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -61,8 +63,33 @@ async function callRowId(salonId: string, msg: VapiMessage) {
   return created?.id ?? null;
 }
 
+/** Vapi retries tool calls on timeouts: return the stored result instead of running a booking twice. */
+async function runOnce(toolCallId: string | undefined, salonId: string, name: string, run: () => Promise<unknown>) {
+  const db = adminClient();
+  if (toolCallId) {
+    const { data: done } = await db.from("tool_call_log").select("result").eq("tool_call_id", toolCallId).maybeSingle();
+    if (done) return done.result;
+  }
+  const result = await run();
+  if (toolCallId) {
+    await db.from("tool_call_log").upsert(
+      { tool_call_id: toolCallId, salon_id: salonId, tool: name, result: JSON.parse(JSON.stringify(result ?? null)) },
+      { onConflict: "tool_call_id", ignoreDuplicates: true },
+    );
+  }
+  return result;
+}
+
+const CALL_ERROR = /error|fault|failed|pipeline|unavailable/i;
+
 export async function POST(req: NextRequest) {
-  if (!authorised(req)) return NextResponse.json({ error: "unauthorised" }, { status: 401 });
+  if (!authorised(req)) {
+    // record a few failures per hour (not every bot hit) so the owner sees misconfiguration
+    if (!(await rateLimited("log:webhook_auth", 20, 3600))) {
+      await logEvent(req.nextUrl.searchParams.get("salon"), "webhook_auth", { ip: req.headers.get("x-forwarded-for") ?? null });
+    }
+    return NextResponse.json({ error: "unauthorised" }, { status: 401 });
+  }
   const body = await req.json().catch(() => null);
   const msg: VapiMessage | undefined = body?.message;
   if (!msg?.type) return NextResponse.json({ error: "bad request" }, { status: 400 });
@@ -103,7 +130,8 @@ export async function POST(req: NextRequest) {
               args = {};
             }
           }
-          const result = await runTool(toolCtx, call.function?.name ?? call.name, args);
+          const name = call.function?.name ?? call.name;
+          const result = await runOnce(call.id, salonId, name, () => runTool(toolCtx, name, args));
           return { toolCallId: call.id, result: JSON.stringify(result) };
         }),
       );
@@ -132,7 +160,26 @@ export async function POST(req: NextRequest) {
           })
           .eq("id", callId);
       }
+      if (msg.endedReason && CALL_ERROR.test(msg.endedReason)) {
+        await logEvent(salonId, "call_error", { endedReason: msg.endedReason, call: msg.call?.id ?? null });
+      }
       return NextResponse.json({ ok: true });
+    }
+
+    case "transfer-destination-request": {
+      // Phone calls only: connect the guest to the branch's front desk.
+      if (!salonId) return NextResponse.json({ error: "No team number is set up for this line." });
+      const { data: salon } = await db.from("salons").select("transfer_phone, area").eq("id", salonId).maybeSingle();
+      const digits = (salon?.transfer_phone ?? "").replace(/\D/g, "");
+      if (isWebCall(msg) || digits.length < 10) {
+        return NextResponse.json({
+          error: "A live transfer isn't available right now. Take her name and mobile number and use request_callback so the team calls her back.",
+        });
+      }
+      const number = `+${digits.length === 10 ? `91${digits}` : digits}`;
+      return NextResponse.json({
+        destination: { type: "number", number, message: `Of course. I'm connecting you to our ${salon?.area ?? ""} team now.`.replace("  ", " ") },
+      });
     }
 
     default:

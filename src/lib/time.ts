@@ -54,3 +54,6 @@ export function normalizePhone(raw: string | null | undefined, defaultCountryCod
 export function countryCodeFor(currency: string): string {
   return ({ INR: "91", USD: "1", CAD: "1", GBP: "44", AED: "971", AUD: "61", SGD: "65" } as Record<string, string>)[currency] ?? "91";
 }
+
+/** ISO timestamp for "N hours ago" (used for "last 24 h" dashboard queries). */
+export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600 * 1000).toISOString();

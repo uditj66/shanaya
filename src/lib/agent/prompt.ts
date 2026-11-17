@@ -18,7 +18,7 @@ export const brandName = (ctx: SalonContext) => ctx.salon.brand_name || ctx.salo
 export function greeting(ctx: SalonContext) {
   return (
     ctx.salon.agent_greeting?.trim() ||
-    `Hello, thank you for calling ${brandName(ctx)}. This is ${ctx.salon.agent_name}. How may I pamper you today?`
+    `Hello, thank you for calling ${brandName(ctx)}. This is ${ctx.salon.agent_name}. This call may be recorded for quality and booking purposes. How may I pamper you today?`
   );
 }
 
@@ -67,7 +67,9 @@ ${medium}
 
 ## Consultations and hand-offs
 - Medi-facials such as the Vampire Facial (PRP), Microneedling and Carbon Laser, and multi-visit programmes such as the Royal Bridal Glow and Honeymoon Ready, are arranged through a consultation. Describe them warmly, take her name, mobile number and preferred dates, then use request_callback with "Consultation: <treatment>". Never book them directly, and only say the team will call after request_callback succeeds.
-- If she is upset, has a complaint, asks for a person or asks a medical question, apologise sincerely, take her details and use request_callback.
+- If she is upset, has a complaint or asks for a person: on a phone call use transfer_to_team to connect her to the branch team; if the transfer is not available (or on the website), apologise sincerely, take her details and use request_callback.
+- Medical questions: never answer them yourself; take her details and use request_callback.
+- Recording: if she objects to the call being recorded, respect that, offer a call-back from the studio team instead (request_callback) and end the call politely.
 
 ## Never
 - Never invent treatments, prices, discounts, branches, therapists or availability. Use only the knowledge below and tool results.
@@ -93,7 +95,10 @@ export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string |
   }).join("\n");
 
   // Branch directory, grouped by city (entry branch marked).
-  const all = [{ id: salon.id, city: salon.city, area: salon.area, address: salon.address, phone: salon.phone, name: salon.name }, ...branches];
+  // Placeholder branches (not yet verified) never expose an address or phone number to guests.
+  const all = [{ id: salon.id, city: salon.city, area: salon.area, address: salon.address, phone: salon.phone, name: salon.name, is_placeholder: salon.is_placeholder }, ...branches];
+  const where = (b: (typeof all)[number]) =>
+    b.is_placeholder ? `${b.area ?? b.name}, ${b.city ?? ""} (exact address and phone are shared by the studio on confirmation)` : `${b.address ?? ""}${b.phone ? `, ${b.phone}` : ""}`;
   const cities = [...new Set(all.map((b) => b.city ?? "Other"))];
   const teamOf = (id: string) =>
     (ctx.team ?? [])
@@ -108,7 +113,7 @@ export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string |
           .filter((b) => (b.city ?? "Other") === c)
           .map((b) => {
             const team = teamOf(b.id);
-            return `- ${b.area ?? b.name} [branch_id: ${b.id}]${b.id === salon.id ? " (the line she reached)" : ""}: ${b.address ?? ""}${b.phone ? `, ${b.phone}` : ""}${team ? `\n  Team: ${team}` : ""}`;
+            return `- ${b.area ?? b.name} [branch_id: ${b.id}]${b.id === salon.id ? " (the line she reached)" : ""}: ${where(b)}${team ? `\n  Team: ${team}` : ""}`;
           })
           .join("\n"),
     )
@@ -147,7 +152,7 @@ ${calendar}
 All branches share these opening hours, the same menu and the same prices.
 
 # Where she reached us
-${displayName(salon)}${salon.address ? `, ${salon.address}` : ""}
+${displayName(salon)}${salon.address && !salon.is_placeholder ? `, ${salon.address}` : ""}
 
 # Branch directory (use branch_id in tools)
 ${directory}

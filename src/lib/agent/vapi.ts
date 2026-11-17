@@ -23,6 +23,21 @@ function serverConfig(salonId?: string) {
 const functionTools = () =>
   toolDefs.map((t) => ({ type: "function", async: false, function: { name: t.name, description: t.description, parameters: t.parameters } }));
 
+/** Dynamic transfer: Vapi asks our server (transfer-destination-request) for the branch's front-desk number. */
+const transferTool = () => ({
+  type: "transferCall",
+  destinations: [],
+  function: {
+    name: "transfer_to_team",
+    description: "Phone calls only: connect the caller to the branch's front-desk team when she asks for a person, is upset, or needs something you cannot do.",
+    parameters: { type: "object", properties: { reason: { type: "string", description: "Why she needs a person" } }, required: [] },
+  },
+  messages: [
+    { type: "request-start", content: "Of course, one moment while I check who can take your call." },
+    { type: "request-failed", content: "I'm so sorry, I can't connect you right now, but I can have our team call you back." },
+  ],
+});
+
 /** Human-feel settings shared by the saved and the transient assistant. */
 const conversationSettings = {
   transcriber: { provider: "deepgram", model: "nova-3", language: "en" },
@@ -39,13 +54,13 @@ const conversationSettings = {
 export function savedAssistantDefinition(agentName = "Shanaya", brand = "Lumière Facial Studio & Spa") {
   return {
     name: `${agentName} · ${brand}`.slice(0, 40),
-    firstMessage: `Hello, thank you for calling {{brand_name}}. This is ${agentName}. How may I pamper you today?`,
+    firstMessage: `Hello, thank you for calling {{brand_name}}. This is ${agentName}. This call may be recorded for quality and booking purposes. How may I pamper you today?`,
     model: {
       provider: "openai",
       model: "gpt-4o",
       temperature: 0.6,
       messages: [{ role: "system", content: `${personaPrompt("voice", agentName, brand)}\n\n# KNOWLEDGE (live, filled in by the Shanaya app on every call; do not edit)\n{{knowledge}}` }],
-      tools: functionTools(),
+      tools: [...functionTools(), transferTool()],
     },
     voice: { provider: "vapi", voiceId: "Naina" },
     endCallMessage: `Thank you for calling {{brand_name}}. Have a lovely day.`,
@@ -78,12 +93,7 @@ export function vapiCallConfig(ctx: SalonContext, callerPhone: string | null, ch
 export function buildVapiAssistant(ctx: SalonContext, callerPhone: string | null, channel: VoiceChannel = "phone") {
   const { salon } = ctx;
   const tools: Record<string, unknown>[] = functionTools();
-  if (salon.transfer_phone && channel === "phone") {
-    tools.push({
-      type: "transferCall",
-      destinations: [{ type: "number", number: salon.transfer_phone, description: "Transfer to the studio team when the guest asks for a person.", message: "Of course, I'm connecting you to our team now." }],
-    });
-  }
+  if (channel === "phone") tools.push(transferTool());
   return {
     name: salon.name.slice(0, 40),
     firstMessage: greeting(ctx),

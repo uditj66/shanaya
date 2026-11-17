@@ -29,12 +29,18 @@ export async function saveSettings(form: FormData) {
     hours[String(d)] = o && c && c > o ? [[o, c]] : [];
   }
 
+  // A placeholder branch becomes "verified" once the owner enters a real address and phone number.
+  const phone = s(form, "phone");
+  const address = s(form, "address");
+  const verified = salon.is_placeholder && !!phone && !!address && (phone !== (salon.phone ?? "") || address !== (salon.address ?? ""));
+
   const { error } = await supabase
     .from("salons")
     .update({
       name: s(form, "name"),
-      phone: s(form, "phone") || null,
-      address: s(form, "address") || null,
+      phone: phone || null,
+      address: address || null,
+      ...(verified ? { is_placeholder: false } : {}),
       website: s(form, "website") || null,
       business_hours: hours,
       slot_interval_minutes: Number(s(form, "slot_interval_minutes")),

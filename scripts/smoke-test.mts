@@ -40,8 +40,10 @@ async function vapi(message: Record<string, unknown>, query = "") {
     }
   }
 }
-async function tool(name: string, args: Record<string, unknown>) {
-  const { body } = await vapi({ type: "tool-calls", toolCallList: [{ id: `t-${name}`, type: "function", function: { name, arguments: args } }] }, `?salon=${SALON}`);
+let seq = 0;
+/** Each tool call gets a unique id, like Vapi does. Pass `id` to replay the same call (a retry). */
+async function tool(name: string, args: Record<string, unknown>, id = `${callId}-t${++seq}`) {
+  const { body } = await vapi({ type: "tool-calls", toolCallList: [{ id, type: "function", function: { name, arguments: args } }] }, `?salon=${SALON}`);
   return JSON.parse(body.results?.[0]?.result ?? "{}");
 }
 
@@ -70,12 +72,28 @@ async function run() {
   const avJ = await tool("check_availability", { branch_id: juhu!.id, service: "FAC001", date: DATE });
   const tJ = avJ.available?.[0]?.time ?? avJ.next_available?.[0]?.time;
   const dJ = avJ.available?.length ? DATE : avJ.next_available_date;
-  const bJ = tJ ? await tool("book_appointment", { branch_id: juhu!.id, service: "FAC001", date: dJ, time: tJ, customer_name: "Smoke Juhu Guest" }) : avJ;
+  const bookArgs = { branch_id: juhu!.id, service: "FAC001", date: dJ, time: tJ, customer_name: "Smoke Juhu Guest" };
+  const retryId = `${callId}-retry`;
+  const bJ = tJ ? await tool("book_appointment", bookArgs, retryId) : avJ;
   if (bJ.success && /Juhu/.test(bJ.branch)) {
     pass(`cross-branch booking from the Bandra line at ${bJ.branch} (${bJ.reference})`);
     juhuRefs.push(bJ.reference);
   }
   else fail("cross-branch booking", bJ);
+
+  // Vapi retries a tool call after a timeout → must return the SAME booking, not create a second one
+  if (bJ.reference) {
+    const again = await tool("book_appointment", bookArgs, retryId);
+    const { count } = await db.from("bookings").select("*", { count: "exact", head: true }).eq("salon_id", juhu!.id).eq("source", "phone").eq("starts_at", (await db.from("bookings").select("starts_at").eq("reference", bJ.reference).single()).data!.starts_at).neq("status", "cancelled");
+    if (again.reference === bJ.reference && count === 1) pass("retried tool call returned the same booking (no double booking)");
+    else fail("retry created a duplicate", { again, count });
+  }
+
+  // Transfer to a person: branch has no team number set → refused, so Shanaya takes a call-back
+  const tr = await vapi({ type: "transfer-destination-request" }, `?salon=${SALON}`);
+  const { data: s0 } = await db.from("salons").select("transfer_phone").eq("id", SALON).single();
+  if (s0?.transfer_phone ? tr.body.destination?.number : tr.body.error) pass(`transfer request handled (${tr.body.destination ? "connects to the branch team" : "no team number → call-back"})`);
+  else fail("transfer-destination-request", tr.body);
 
   // 2. Availability
   const av = await tool("check_availability", { service_id: HYDRA, date: DATE, preferred_time: "17:00" });
@@ -136,6 +154,16 @@ async function run() {
     if (t.reply && !t.error) pass(`website chat replied: "${t.reply.slice(0, 120)}"`);
     else fail("website chat", t);
     await db.from("calls").delete().eq("id", s.sessionId);
+  }
+
+  // 8. Rate limit works across serverless instances: 35 quick "open chat" requests → some get 429
+  if (process.argv.includes("--limits")) {
+    const codes = await Promise.all(
+      Array.from({ length: 35 }, () => fetch(`${APP}/api/widget/lumiere`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.status).catch(() => 0)),
+    );
+    const blocked = codes.filter((c) => c === 429).length;
+    if (blocked > 0) pass(`rate limit: ${blocked} of 35 rapid requests blocked (429)`);
+    else fail("rate limit never triggered", codes);
   }
 
   // cleanup

@@ -14,14 +14,14 @@ const salon = {
   llm_model: "gpt-5.4-mini", phone_llm_model: "gpt-4o",
   voice_provider: "vapi", voice_id: "Naina", voice_model: null, voice_settings: { speed: 1 },
   vapi_phone_number_id: null, transfer_phone: "+919800000000", widget_enabled: true, created_at: "",
-  brand_name: "Lumière Facial Studio & Spa", city: "Mumbai", area: "Bandra West", branch_code: "MUM-BAN", is_placeholder: true, guest_profiles: [],
+  brand_name: "Lumière Facial Studio & Spa", city: "Mumbai", area: "Bandra West", branch_code: "MUM-BAN", is_placeholder: true, guest_profiles: [], daily_web_voice_cap: 100, daily_chat_cap: 500,
 } as SalonContext["salon"];
 const ctx: SalonContext = {
   salon,
   services: [],
   staff: [{ id: "a", name: "Ananya", title: null }],
   packages: [],
-  branches: [{ id: "s2", name: "Lumière · Juhu", slug: "lumiere-mumbai-juhu", city: "Mumbai", area: "Juhu", address: "Juhu Tara Road", phone: null }],
+  branches: [{ id: "s2", name: "Lumière · Juhu", slug: "lumiere-mumbai-juhu", city: "Mumbai", area: "Juhu", address: "Juhu Tara Road", phone: "+91 22 2600 1111", is_placeholder: false }],
 };
 const NOW = new Date("2026-11-18T06:30:00Z");
 const stripCaller = (k: string) => k.replace(/\n# This call[\s\S]*$/, "").replace(/now \d{2}:\d{2}/, "");
@@ -98,5 +98,27 @@ describe("favourite therapist", () => {
   it("knowledge lists each branch's team so names can be matched exactly", () => {
     const k = buildKnowledge({ ...ctx, team: [{ salon_id: "s2", name: "Meera", title: "Skin Therapist" }] }, { now: NOW });
     expect(k).toContain("Team: Meera (Skin Therapist)");
+  });
+});
+
+describe("go-live safety", () => {
+  it("never reads out a placeholder branch's phone or address, but does for verified branches", () => {
+    const k = buildKnowledge(ctx, { now: NOW }); // entry branch is a placeholder, Juhu is verified
+    expect(k).not.toContain("4000 0000");
+    expect(k).not.toContain("Linking Road");
+    expect(k).toContain("exact address and phone are shared by the studio");
+    expect(k).toContain("Juhu Tara Road, +91 22 2600 1111");
+  });
+
+  it("greets with the recording notice on phone and website", () => {
+    process.env.VAPI_ASSISTANT_ID = "";
+    expect(savedAssistantDefinition().firstMessage).toMatch(/may be recorded/i);
+    expect(buildVapiAssistant(ctx, null, "web").firstMessage).toMatch(/may be recorded/i);
+  });
+
+  it("persona hands off to a person by transfer on the phone and respects recording objections", () => {
+    const p = personaPrompt("voice");
+    expect(p).toContain("transfer_to_team");
+    expect(p).toMatch(/objects to the call being recorded/i);
   });
 });

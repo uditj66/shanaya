@@ -7,6 +7,18 @@ export type Database = {
   __InternalSupabase: { PostgrestVersion: "14.18" };
   public: {
     Tables: {
+      agent_events: {
+        Row: { created_at: string; detail: Json; id: string; kind: string; salon_id: string | null };
+        Insert: { created_at?: string; detail?: Json; id?: string; kind: string; salon_id?: string | null };
+        Update: Partial<Database["public"]["Tables"]["agent_events"]["Insert"]>;
+        Relationships: [];
+      };
+      tool_call_log: {
+        Row: { created_at: string; result: Json; salon_id: string | null; tool: string; tool_call_id: string };
+        Insert: { created_at?: string; result: Json; salon_id?: string | null; tool: string; tool_call_id: string };
+        Update: Partial<Database["public"]["Tables"]["tool_call_log"]["Insert"]>;
+        Relationships: [];
+      };
       bookings: {
         Row: {
           blocked_until: string; call_id: string | null; cancel_reason: string | null; created_at: string; created_by: string | null;
@@ -100,7 +112,7 @@ export type Database = {
           created_at: string; currency: string; id: string; llm_model: string; max_days_ahead: number; min_notice_minutes: number;
           name: string; phone: string | null; phone_llm_model: string; policies: string; slot_interval_minutes: number; slug: string;
           timezone: string; transfer_phone: string | null; vapi_phone_number_id: string | null; voice_id: string | null; voice_model: string | null; voice_settings: Json;
-          brand_name: string | null; city: string | null; area: string | null; branch_code: string | null; is_placeholder: boolean; guest_profiles: Json;
+          brand_name: string | null; city: string | null; area: string | null; branch_code: string | null; is_placeholder: boolean; guest_profiles: Json; daily_web_voice_cap: number; daily_chat_cap: number;
           voice_provider: string; website: string | null; widget_enabled: boolean;
         };
         Insert: {
@@ -108,7 +120,7 @@ export type Database = {
           created_at?: string; currency?: string; id?: string; llm_model?: string; max_days_ahead?: number; min_notice_minutes?: number;
           name: string; phone?: string | null; phone_llm_model?: string; policies?: string; slot_interval_minutes?: number; slug: string;
           timezone?: string; transfer_phone?: string | null; vapi_phone_number_id?: string | null; voice_id?: string | null; voice_model?: string | null; voice_settings?: Json;
-          brand_name?: string | null; city?: string | null; area?: string | null; branch_code?: string | null; is_placeholder?: boolean; guest_profiles?: Json;
+          brand_name?: string | null; city?: string | null; area?: string | null; branch_code?: string | null; is_placeholder?: boolean; guest_profiles?: Json; daily_web_voice_cap?: number; daily_chat_cap?: number;
           voice_provider?: string; website?: string | null; widget_enabled?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["salons"]["Insert"]>;
@@ -169,6 +181,7 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      hit_rate_limit: { Args: { p_key: string; p_limit: number; p_window_seconds: number }; Returns: boolean };
       create_salon: { Args: { p_currency?: string; p_name: string; p_slug: string; p_timezone?: string }; Returns: string };
     };
     Enums: {

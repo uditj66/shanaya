@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireSalon } from "@/lib/session";
+import { hoursAgo } from "@/lib/time";
 import { signOut } from "../login/actions";
 import { LiveRefresh } from "./live-refresh";
 import { SalonSwitcher } from "./salon-switcher";
@@ -12,6 +13,7 @@ const nav = [
   ["/dashboard/customers", "Guests"],
   ["/dashboard/services", "Services"],
   ["/dashboard/team", "Team & hours"],
+  ["/dashboard/health", "Health"],
   ["/dashboard/settings", "Settings"],
 ] as const;
 
@@ -22,6 +24,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .select("*", { count: "exact", head: true })
     .eq("salon_id", salon.id)
     .eq("status", "open");
+  const { count: recentIssues } = await supabase
+    .from("agent_events")
+    .select("*", { count: "exact", head: true })
+    .eq("salon_id", salon.id)
+    .neq("kind", "cap_reached")
+    .gte("created_at", hoursAgo(24));
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
@@ -37,6 +45,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
               {href === "/dashboard/callbacks" && !!openCallbacks && (
                 <span className="ml-2 rounded-full bg-gold px-1.5 text-[11px] font-semibold text-white">{openCallbacks}</span>
               )}
+              {href === "/dashboard/health" && !!recentIssues && (
+                <span className="ml-2 rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">{recentIssues}</span>
+              )}
             </Link>
           ))}
         </nav>
@@ -45,7 +56,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <form action={signOut}><button className="mt-1 hover:text-ink">Sign out</button></form>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-8">{children}</main>
+      <main className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-8">
+        {salon.is_placeholder && (
+          <Link href="/dashboard/settings" className="mb-6 block rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm text-gold-dark hover:bg-gold/15">
+            <strong>This branch still has placeholder details.</strong> Add its real address and phone number in Settings (and real team names in Team &amp; hours) before guests call. Until then Shanaya won&apos;t read out its address or number.
+          </Link>
+        )}
+        {children}
+      </main>
       <LiveRefresh salonId={salon.id} />
     </div>
   );
