@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // The dashboard is fully per-user and dynamic, so we use the classic request-time rendering model.
   turbopack: {
     rules: {
       "*.css": {
@@ -11,6 +9,15 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  async headers() {
+    return [
+      {
+        // The public widget page is embedded in salons' websites via an iframe.
+        source: "/w/:slug*",
+        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors *" }],
+      },
+    ];
   },
 };
 

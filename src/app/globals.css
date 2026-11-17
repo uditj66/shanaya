@@ -1,26 +1,30 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* Shanaya palette: ivory, espresso, champagne gold */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ivory: #faf7f2;
+  --color-cream: #f3ede4;
+  --color-line: #e7dfd3;
+  --color-ink: #2a2220;
+  --color-muted: #8a7d74;
+  --color-gold: #b08d57;
+  --color-gold-dark: #8c6d3f;
+  --color-rose: #b4746b;
+  --color-sage: #6f8f74;
+  --color-danger: #b4534b;
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-cormorant);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-ivory);
+  color: var(--color-ink);
+}
+
+/* Native form controls in the same style everywhere */
+.field {
+  @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/20;
+}
+.label {
+  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-muted;
 }

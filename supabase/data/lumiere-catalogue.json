@@ -1,0 +1,168 @@
+{
+  "brand": {
+    "name": "Lumière Facial Studio & Spa",
+    "agent_name": "Shanaya",
+    "timezone": "Asia/Kolkata",
+    "currency": "INR",
+    "audience": "Women-focused premium beauty, skincare and wellness",
+    "business_hours": {
+      "0": [["10:00", "20:00"]],
+      "1": [["10:00", "21:00"]],
+      "2": [["10:00", "21:00"]],
+      "3": [["10:00", "21:00"]],
+      "4": [["10:00", "21:00"]],
+      "5": [["10:00", "21:00"]],
+      "6": [["10:00", "21:00"]]
+    },
+    "slot_interval_minutes": 15,
+    "min_notice_minutes": 60,
+    "max_days_ahead": 90,
+    "policies": [
+      "Lumière studios are women-focused; every branch follows the same Lumière standard (SOP) for services and pricing.",
+      "Please arrive 10 minutes before your appointment.",
+      "Free cancellation or rescheduling up to 4 hours before the appointment.",
+      "Prices are standard across all branches and exclude GST.",
+      "Medi-facials such as the Vampire Facial (PRP), Microneedling and Carbon Laser are performed only by our aesthetic physician after a consultation; they cannot be booked directly.",
+      "Tell us about pregnancy, allergies, active skin conditions, recent peels or retinoid use when booking, so the therapist can adjust or advise.",
+      "Payment at the studio by UPI, card or cash. Gift cards are available at every branch."
+    ],
+    "extra_information": [
+      "Bridal clients: we recommend starting the Royal Bridal Glow programme 6 to 8 weeks before the wedding and avoiding new or intensive treatments in the final week.",
+      "Festive season (Karwa Chauth, Teej, Diwali) slots fill quickly; suggest booking at least a week ahead.",
+      "Add-ons such as LED light therapy, sheet masks and gold masks can be added at the studio; the therapist will confirm the price."
+    ]
+  },
+
+  "guest_profiles": [
+    {
+      "name": "Young women (18-25)",
+      "goals": ["everyday skincare", "acne-prone or oily skin", "hydration", "college and party grooming"],
+      "recommend": ["Korean Glass Skin Facial", "HydraFacial", "Vitamin C Brightening Facial", "Eyebrow Threading", "Classic Manicure", "Luxury Hair Spa"],
+      "note": "Ask about skin goals and sensitivity before suggesting a treatment."
+    },
+    {
+      "name": "Working professionals (25-40)",
+      "goals": ["time-efficient skincare", "stress relief", "regular maintenance", "polished grooming"],
+      "recommend": ["Celebrity Glow Facial", "HydraFacial", "Aromatherapy Massage", "Luxury Hair Spa", "Luxury Spa Pedicure", "Full Face Detan"],
+      "note": "Offer convenient slots (early evening, weekends) and treatments that fit their schedule."
+    },
+    {
+      "name": "Brides-to-be",
+      "goals": ["wedding preparation", "bridal glow", "hair and body grooming", "relaxation before the big day"],
+      "recommend": ["The Royal Bridal Glow package", "Korean Glass Skin Facial", "Celebrity Glow Facial", "Full Body Polishing", "Luxury Hair Spa", "Luxury Spa Manicure", "Luxury Spa Pedicure"],
+      "note": "Ask the wedding date first and plan a timeline; avoid new or intensive treatments in the final week."
+    },
+    {
+      "name": "Mature women (40+)",
+      "goals": ["deep hydration", "comfort-focused skincare", "relaxation", "hair nourishment"],
+      "recommend": ["Collagen Boost Facial", "24K Gold Facial", "Swedish Body Massage", "Luxury Hair Spa", "Luxury Spa Manicure", "Luxury Spa Pedicure"],
+      "note": "Ask about sensitivity, comfort and goals. Age alone never decides what is suitable."
+    },
+    {
+      "name": "New brides and honeymooners",
+      "goals": ["pre-honeymoon grooming", "radiant skin", "body care", "relaxation"],
+      "recommend": ["Honeymoon Ready package", "Celebrity Glow Facial", "Full Body Polishing", "Luxury Body Spa Ritual", "Luxury Spa Pedicure"],
+      "note": "Ask the travel date and plan treatments a few days before travel."
+    },
+    {
+      "name": "Luxury self-care",
+      "goals": ["premium experiences", "regular wellness", "pampering"],
+      "recommend": ["Luxury Body Spa Ritual", "Celebrity Glow Facial", "24K Gold Facial", "Hot Stone Massage", "Luxury Weekend Escape package"],
+      "note": "Lead with the most indulgent experiences and suggest combinations."
+    }
+  ],
+
+  "team_template": [
+    { "role": "Senior Skin Therapist", "skills": ["Luxury Facials", "Advanced Medi-Facials", "Detan & Brightening", "Occasion Packages"], "shift": ["10:00", "19:00"], "color": "#b4746b" },
+    { "role": "Skin Therapist", "skills": ["Luxury Facials", "Detan & Brightening", "Advanced Medi-Facials"], "shift": ["12:00", "21:00"], "color": "#c98f6b" },
+    { "role": "Aesthetic Physician", "skills": ["Medical Aesthetics"], "shift": ["11:00", "18:00"], "color": "#8a6fb4" },
+    { "role": "Spa Therapist", "skills": ["Body Spa & Massage", "Body Polishing & Treatments", "Detan & Brightening"], "shift": ["10:00", "19:00"], "color": "#6f8f74" },
+    { "role": "Spa Therapist", "skills": ["Body Spa & Massage", "Body Polishing & Treatments", "Detan & Brightening"], "shift": ["12:00", "21:00"], "color": "#5f8a8f" },
+    { "role": "Hair Stylist", "skills": ["Hair Services & Hair Spa"], "shift": ["11:00", "20:00"], "color": "#6b85b4" },
+    { "role": "Nail & Beauty Technician", "skills": ["Manicure & Pedicure", "Threading & Waxing", "Detan & Brightening"], "shift": ["10:00", "19:00"], "color": "#b08d57" }
+  ],
+
+  "services": [
+    { "code": "FAC001", "name": "Korean Glass Skin Facial", "category": "Luxury Facials", "price": 3499, "minutes": 75, "buffer": 15, "description": "Multi-step Korean-inspired facial for deep hydration, gentle exfoliation and a dewy glass-skin finish.", "suitable_for": ["dull skin", "dehydrated skin", "uneven texture", "young women", "brides"], "add_ons": ["LED Light Therapy", "Hydrating Sheet Mask"] },
+    { "code": "FAC002", "name": "Celebrity Glow Facial", "category": "Luxury Facials", "price": 4999, "minutes": 90, "buffer": 15, "description": "Red-carpet facial: cleanse, exfoliation, sculpting facial massage, hydration and a premium finishing mask. Ideal before events.", "suitable_for": ["special occasions", "dull skin", "brides", "working professionals"], "add_ons": ["Gold Mask", "Under-Eye Treatment"] },
+    { "code": "FAC003", "name": "HydraFacial", "category": "Luxury Facials", "price": 3999, "minutes": 60, "buffer": 15, "description": "Device-assisted cleanse, exfoliation, gentle extraction and serum infusion. Instant glow with no downtime.", "suitable_for": ["congested skin", "oily skin", "dull skin", "dehydrated skin"], "add_ons": ["Booster Serum", "LED Light Therapy"] },
+    { "code": "FAC004", "name": "24K Gold Facial", "category": "Luxury Facials", "price": 2999, "minutes": 75, "buffer": 15, "description": "Indulgent facial with gold-infused skincare, lifting massage and hydration for a luminous finish.", "suitable_for": ["dull skin", "special occasions", "mature skin"], "add_ons": ["Gold Mask", "Neck Treatment"] },
+    { "code": "FAC005", "name": "Vitamin C Brightening Facial", "category": "Luxury Facials", "price": 2499, "minutes": 60, "buffer": 15, "description": "Brightening facial with vitamin C skincare to even out tone and revive dull skin.", "suitable_for": ["dull skin", "uneven skin tone", "young women"], "add_ons": ["Sheet Mask", "Eye Treatment"] },
+    { "code": "FAC006", "name": "Collagen Boost Facial", "category": "Luxury Facials", "price": 3999, "minutes": 75, "buffer": 15, "description": "Rich hydrating facial with collagen-based skincare for smoother, plumper-looking skin.", "suitable_for": ["mature skin", "dehydrated skin", "fine lines"], "add_ons": ["Collagen Mask", "LED Light Therapy"] },
+    { "code": "FAC007", "name": "Acne Clarifying Facial", "category": "Luxury Facials", "price": 2799, "minutes": 60, "buffer": 15, "description": "Salicylic cleanse, gentle extraction and a calming mask for oily or acne-prone skin.", "suitable_for": ["oily skin", "acne-prone skin", "young women"], "add_ons": ["LED Light Therapy"] },
+
+    { "code": "MED001", "name": "Vampire Facial (PRP)", "category": "Advanced Medi-Facials", "price": 8999, "minutes": 90, "buffer": 30, "description": "Platelet-rich plasma treatment using the client's own blood-derived PRP, often combined with microneedling, for texture, scarring and fine lines.", "suitable_for": ["skin texture concerns", "acne scarring", "fine lines"], "add_ons": ["Post-Procedure Skincare Kit"], "consultation_first": true, "provider_note": "Performed only by our aesthetic physician after a medical consultation and clearance.", "skill": "Medical Aesthetics" },
+    { "code": "MED002", "name": "Microneedling Facial", "category": "Advanced Medi-Facials", "price": 5999, "minutes": 75, "buffer": 30, "description": "Controlled microneedling to improve the look of texture and acne scarring.", "suitable_for": ["uneven texture", "acne scarring", "fine lines"], "add_ons": ["Post-Treatment Care Kit"], "consultation_first": true, "provider_note": "Performed only by our aesthetic physician after a medical consultation and clearance.", "skill": "Medical Aesthetics" },
+    { "code": "MED003", "name": "Carbon Laser Facial", "category": "Advanced Medi-Facials", "price": 4999, "minutes": 60, "buffer": 30, "description": "Laser-assisted 'Hollywood peel' with carbon lotion for oily skin and texture.", "suitable_for": ["oily skin", "uneven texture"], "consultation_first": true, "provider_note": "Performed only by our aesthetic physician after a medical consultation and clearance.", "skill": "Medical Aesthetics" },
+    { "code": "MED004", "name": "OxyGeneo Facial", "category": "Advanced Medi-Facials", "price": 4499, "minutes": 60, "buffer": 15, "description": "Device-assisted exfoliation and oxygenation treatment for radiance and hydration.", "suitable_for": ["dull skin", "uneven texture"], "add_ons": ["Hydrating Mask"], "provider_note": "A short skin consultation is included at the start." },
+    { "code": "MED005", "name": "Medi Brightening Facial", "category": "Advanced Medi-Facials", "price": 3999, "minutes": 60, "buffer": 15, "description": "Customised professional facial with selected exfoliating and brightening actives.", "suitable_for": ["uneven skin tone", "dull skin"], "provider_note": "A short skin consultation is included at the start." },
+
+    { "code": "DTN001", "name": "Full Face Detan", "category": "Detan & Brightening", "price": 999, "minutes": 30, "buffer": 10, "description": "Professional detan to lift surface tan and refresh sun-exposed skin.", "suitable_for": ["sun tan", "before events"] },
+    { "code": "DTN002", "name": "Full Body Detan", "category": "Detan & Brightening", "price": 3999, "minutes": 75, "buffer": 15, "description": "Full-body detan with exfoliating and conditioning products.", "suitable_for": ["sun tan", "holidays", "brides"] },
+
+    { "code": "SPA001", "name": "Swedish Body Massage", "category": "Body Spa & Massage", "price": 2999, "minutes": 60, "buffer": 15, "description": "Relaxing full-body massage with gentle to medium pressure and flowing strokes.", "suitable_for": ["relaxation", "stress relief", "mature women"], "add_ons": ["Aromatherapy Oil", "Extended Massage"] },
+    { "code": "SPA002", "name": "Deep Tissue Body Massage", "category": "Body Spa & Massage", "price": 3999, "minutes": 60, "buffer": 15, "description": "Firmer, focused massage to release muscle tension and knots.", "suitable_for": ["muscle tension", "working professionals"] },
+    { "code": "SPA003", "name": "Aromatherapy Massage", "category": "Body Spa & Massage", "price": 3499, "minutes": 60, "buffer": 15, "description": "Soothing massage with essential-oil blends for deep relaxation.", "suitable_for": ["relaxation", "stress relief", "self-care"] },
+    { "code": "SPA004", "name": "Hot Stone Massage", "category": "Body Spa & Massage", "price": 4499, "minutes": 75, "buffer": 15, "description": "Warm basalt stones combined with massage to melt away tension.", "suitable_for": ["relaxation", "luxury self-care"] },
+    { "code": "SPA005", "name": "Luxury Body Spa Ritual", "category": "Body Spa & Massage", "price": 5999, "minutes": 120, "buffer": 15, "description": "Signature two-hour ritual: body cleanse, relaxing massage and nourishing body care.", "suitable_for": ["luxury self-care", "honeymoon", "special occasions"] },
+
+    { "code": "BDY001", "name": "Full Body Polishing", "category": "Body Polishing & Treatments", "price": 3999, "minutes": 90, "buffer": 15, "description": "Full-body exfoliation and moisturising for silky, glowing skin.", "suitable_for": ["brides", "honeymoon", "dull body skin"], "add_ons": ["Hydrating Body Mask"] },
+    { "code": "BDY002", "name": "Coffee Body Scrub", "category": "Body Polishing & Treatments", "price": 2499, "minutes": 45, "buffer": 15, "description": "Invigorating coffee scrub to smooth and refresh the skin.", "suitable_for": ["dull body skin", "quick refresh"] },
+    { "code": "BDY003", "name": "Chocolate Body Wrap", "category": "Body Polishing & Treatments", "price": 3499, "minutes": 60, "buffer": 15, "description": "Luxurious cocoa wrap that softens and conditions the skin.", "suitable_for": ["dry skin", "luxury self-care"] },
+
+    { "code": "HR001", "name": "Luxury Hair Spa", "category": "Hair Services & Hair Spa", "price": 1999, "minutes": 60, "buffer": 10, "description": "Nourishing hair and scalp treatment with deep conditioning and a relaxing scalp massage.", "suitable_for": ["dry or frizzy hair", "relaxation", "festive prep"], "add_ons": ["Advanced Hair Mask", "Extended Scalp Massage"] },
+    { "code": "HR002", "name": "Keratin Hair Treatment", "category": "Hair Services & Hair Spa", "price": 6999, "minutes": 180, "buffer": 15, "description": "Professional smoothing treatment to reduce frizz and make hair easier to manage.", "suitable_for": ["frizzy hair"], "provider_note": "Hair assessment at the start; price may vary with hair length." },
+    { "code": "HR003", "name": "Hair Botox Treatment", "category": "Hair Services & Hair Spa", "price": 5999, "minutes": 150, "buffer": 15, "description": "Deep conditioning and smoothing treatment (no injections) for soft, glossy hair.", "suitable_for": ["damaged hair", "frizzy hair"], "provider_note": "Hair assessment at the start; price may vary with hair length." },
+    { "code": "HR004", "name": "Haircut & Styling", "category": "Hair Services & Hair Spa", "price": 999, "minutes": 45, "buffer": 10, "description": "Precision cut and blow-dry styled to your look.", "suitable_for": ["everyone"] },
+    { "code": "HR005", "name": "Global Hair Colour", "category": "Hair Services & Hair Spa", "price": 3999, "minutes": 150, "buffer": 15, "description": "Full-head colour with a shade consultation.", "suitable_for": ["colour refresh"], "provider_note": "A patch test 48 hours before is recommended for first-time colour." },
+    { "code": "HR006", "name": "Balayage & Highlights", "category": "Hair Services & Hair Spa", "price": 7999, "minutes": 240, "buffer": 15, "description": "Hand-painted balayage or highlights for a natural, sun-kissed look.", "suitable_for": ["colour makeover"], "provider_note": "A patch test 48 hours before is recommended for first-time colour." },
+
+    { "code": "NA001", "name": "Classic Manicure", "category": "Manicure & Pedicure", "price": 699, "minutes": 40, "buffer": 10, "description": "Nail shaping, cuticle care, cleanse and moisturise.", "suitable_for": ["regular grooming"] },
+    { "code": "NA002", "name": "Luxury Spa Manicure", "category": "Manicure & Pedicure", "price": 1499, "minutes": 60, "buffer": 10, "description": "Premium manicure with exfoliation, hand massage and nourishing mask.", "suitable_for": ["special occasions", "brides", "self-care"] },
+    { "code": "NA003", "name": "Classic Pedicure", "category": "Manicure & Pedicure", "price": 899, "minutes": 45, "buffer": 10, "description": "Foot soak, nail shaping, cuticle care and moisturise.", "suitable_for": ["regular grooming"] },
+    { "code": "NA004", "name": "Luxury Spa Pedicure", "category": "Manicure & Pedicure", "price": 1799, "minutes": 75, "buffer": 10, "description": "Extended foot ritual with exfoliation, massage and hydrating mask.", "suitable_for": ["special occasions", "brides", "self-care"] },
+
+    { "code": "GR001", "name": "Eyebrow Threading", "category": "Threading & Waxing", "price": 99, "minutes": 15, "buffer": 5, "description": "Precise eyebrow shaping with threading.", "suitable_for": ["regular grooming"] },
+    { "code": "GR002", "name": "Full Face Threading", "category": "Threading & Waxing", "price": 299, "minutes": 30, "buffer": 5, "description": "Full-face hair removal and shaping with threading.", "suitable_for": ["regular grooming"] },
+    { "code": "GR003", "name": "Full Arms Waxing", "category": "Threading & Waxing", "price": 499, "minutes": 30, "buffer": 10, "description": "Smooth hair removal for both arms.", "suitable_for": ["regular grooming"] },
+    { "code": "GR004", "name": "Full Legs Waxing", "category": "Threading & Waxing", "price": 899, "minutes": 45, "buffer": 10, "description": "Smooth hair removal for both legs.", "suitable_for": ["regular grooming"] },
+    { "code": "GR005", "name": "Full Body Waxing", "category": "Threading & Waxing", "price": 2999, "minutes": 120, "buffer": 15, "description": "Complete body hair removal with professional waxes.", "suitable_for": ["brides", "honeymoon", "holidays"] }
+  ],
+
+  "packages": [
+    { "code": "PKG001", "name": "The Royal Bridal Glow", "occasion": "Wedding", "for": ["brides", "brides-to-be"], "price": 14999, "visits": 4, "validity_days": 60, "includes": ["FAC001", "FAC002", "BDY001", "HR001", "NA002", "NA004"], "description": "A four-visit pre-wedding programme: Korean glass skin and celebrity facials, body polishing, hair spa, luxury manicure and pedicure, timed to your wedding date." },
+    { "code": "PKG002", "name": "Karwa Chauth Radiance", "occasion": "Karwa Chauth", "for": ["married women", "festive preparation"], "price": 5499, "visits": 1, "includes": ["FAC002", "DTN001", "GR001", "NA002", "NA003"], "description": "Celebrity glow facial, face detan, eyebrow threading, luxury manicure and classic pedicure for a radiant festive look." },
+    { "code": "PKG003", "name": "Festive Glam", "occasion": "Diwali and festive season", "for": ["women", "working professionals"], "price": 6999, "visits": 1, "includes": ["FAC002", "DTN001", "HR001", "NA004"], "description": "Celebrity glow facial, face detan, luxury hair spa and luxury spa pedicure." },
+    { "code": "PKG004", "name": "Honeymoon Ready", "occasion": "Honeymoon", "for": ["new brides", "travel preparation"], "price": 8999, "visits": 2, "validity_days": 30, "includes": ["FAC001", "BDY001", "HR001", "NA004"], "description": "Two visits before you travel: glass skin facial, full body polishing, hair spa and luxury pedicure." },
+    { "code": "PKG005", "name": "Valentine's Self-Love Ritual", "occasion": "Valentine's Day", "for": ["women", "young professionals", "self-care"], "price": 4999, "visits": 1, "includes": ["FAC004", "SPA003", "NA002"], "description": "24K gold facial, aromatherapy massage and luxury spa manicure." },
+    { "code": "PKG006", "name": "New Year Glow Up", "occasion": "New Year", "for": ["women", "party preparation"], "price": 7499, "visits": 1, "includes": ["FAC003", "HR001", "BDY001", "NA002"], "description": "HydraFacial, luxury hair spa, full body polishing and luxury spa manicure." },
+    { "code": "PKG007", "name": "Teej Traditional Glow", "occasion": "Teej", "for": ["women", "festive preparation"], "price": 3999, "visits": 1, "includes": ["FAC005", "DTN001", "GR001", "NA003"], "description": "Vitamin C brightening facial, face detan, eyebrow threading and classic pedicure." },
+    { "code": "PKG008", "name": "Luxury Weekend Escape", "occasion": "Weekend self-care", "for": ["working women", "luxury self-care"], "price": 5999, "visits": 1, "includes": ["SPA001", "FAC003", "NA004"], "description": "Swedish massage, HydraFacial and luxury spa pedicure: the perfect weekend reset." }
+  ],
+
+  "branches": [
+    { "code": "MUM-BAN", "slug": "lumiere", "legacy_slug": "lumiere", "city": "Mumbai", "area": "Bandra West", "address": "Ground Floor, Linking Road, Bandra West, Mumbai 400050", "std": "22", "flagship": true },
+    { "code": "MUM-JUH", "slug": "lumiere-mumbai-juhu", "city": "Mumbai", "area": "Juhu", "address": "Juhu Tara Road, Juhu, Mumbai 400049", "std": "22" },
+    { "code": "MUM-LOP", "slug": "lumiere-mumbai-lower-parel", "city": "Mumbai", "area": "Lower Parel", "address": "Senapati Bapat Marg, Lower Parel, Mumbai 400013", "std": "22" },
+    { "code": "MUM-MAL", "slug": "lumiere-mumbai-malad", "legacy_slug": "lumerie-malad", "city": "Mumbai", "area": "Malad West", "address": "New Link Road, Malad West, Mumbai 400064", "std": "22" },
+    { "code": "DEL-GK2", "slug": "lumiere-delhi-gk2", "city": "New Delhi", "area": "Greater Kailash II", "address": "M Block Market, Greater Kailash II, New Delhi 110048", "std": "11" },
+    { "code": "DEL-KHN", "slug": "lumiere-delhi-khan-market", "city": "New Delhi", "area": "Khan Market", "address": "Middle Lane, Khan Market, New Delhi 110003", "std": "11" },
+    { "code": "DEL-VVR", "slug": "lumiere-delhi-vasant-vihar", "city": "New Delhi", "area": "Vasant Vihar", "address": "Basant Lok Market, Vasant Vihar, New Delhi 110057", "std": "11" },
+    { "code": "BLR-IND", "slug": "lumiere-bengaluru-indiranagar", "city": "Bengaluru", "area": "Indiranagar", "address": "100 Feet Road, Indiranagar, Bengaluru 560038", "std": "80" },
+    { "code": "BLR-KOR", "slug": "lumiere-bengaluru-koramangala", "city": "Bengaluru", "area": "Koramangala", "address": "80 Feet Road, Koramangala 4th Block, Bengaluru 560034", "std": "80" },
+    { "code": "BLR-WHF", "slug": "lumiere-bengaluru-whitefield", "city": "Bengaluru", "area": "Whitefield", "address": "ITPL Main Road, Whitefield, Bengaluru 560066", "std": "80" },
+    { "code": "KOL-PRK", "slug": "lumiere-kolkata-park-street", "city": "Kolkata", "area": "Park Street", "address": "Park Street, Kolkata 700016", "std": "33" },
+    { "code": "KOL-BAL", "slug": "lumiere-kolkata-ballygunge", "city": "Kolkata", "area": "Ballygunge", "address": "Gurusaday Road, Ballygunge, Kolkata 700019", "std": "33" },
+    { "code": "CHE-NUN", "slug": "lumiere-chennai-nungambakkam", "city": "Chennai", "area": "Nungambakkam", "address": "Khader Nawaz Khan Road, Nungambakkam, Chennai 600006", "std": "44" },
+    { "code": "CHE-ANN", "slug": "lumiere-chennai-anna-nagar", "city": "Chennai", "area": "Anna Nagar", "address": "2nd Avenue, Anna Nagar, Chennai 600040", "std": "44" },
+    { "code": "JAI-CSC", "slug": "lumiere-jaipur-c-scheme", "city": "Jaipur", "area": "C-Scheme", "address": "Ashok Marg, C-Scheme, Jaipur 302001", "std": "141" },
+    { "code": "IND-VJN", "slug": "lumiere-indore-vijay-nagar", "city": "Indore", "area": "Vijay Nagar", "address": "Scheme No. 54, Vijay Nagar, Indore 452010", "std": "731" },
+    { "code": "AHM-SBR", "slug": "lumiere-ahmedabad-sindhu-bhavan", "city": "Ahmedabad", "area": "Sindhu Bhavan Road", "address": "Sindhu Bhavan Road, Bodakdev, Ahmedabad 380059", "std": "79" },
+    { "code": "LKO-GMN", "slug": "lumiere-lucknow-gomti-nagar", "city": "Lucknow", "area": "Gomti Nagar", "address": "Vibhuti Khand, Gomti Nagar, Lucknow 226010", "std": "522" },
+    { "code": "CHD-S09", "slug": "lumiere-chandigarh-sector-9", "city": "Chandigarh", "area": "Sector 9", "address": "Madhya Marg, Sector 9-D, Chandigarh 160009", "std": "172" },
+    { "code": "GOA-PNJ", "slug": "lumiere-goa-panaji", "city": "Goa", "area": "Panaji", "address": "18th June Road, Panaji, Goa 403001", "std": "832" },
+    { "code": "GOA-CAN", "slug": "lumiere-goa-candolim", "city": "Goa", "area": "Candolim", "address": "Fort Aguada Road, Candolim, Goa 403515", "std": "832" }
+  ],
+
+  "first_names": ["Ananya", "Meera", "Kavya", "Riya", "Ishita", "Priya", "Nisha", "Aditi", "Sneha", "Pooja", "Tanvi", "Shreya", "Neha", "Aarti", "Divya", "Simran", "Kritika", "Anjali", "Radhika", "Sakshi", "Mansi", "Payal", "Nandini", "Kiran", "Swati", "Deepika", "Jasmine", "Farah", "Lavanya", "Pallavi", "Ritika", "Bhavna", "Aishwarya", "Sana", "Gauri", "Komal"]
+}
