@@ -16,7 +16,7 @@ async function Year() {
   return new Date().getFullYear();
 }
 
-export async function SiteFooter({ brand }: { brand: BrandData }) {
+export async function SiteFooter({ brand, hide = [] }: { brand: BrandData; hide?: string[] }) {
   const cities = await getCities(brand.slug);
   return (
     <footer className="mt-24 border-t border-line bg-linen md:mt-40">
@@ -34,7 +34,7 @@ export async function SiteFooter({ brand }: { brand: BrandData }) {
           <nav key={title} aria-label={title} className="md:col-span-2">
             <p className="eyebrow">{title}</p>
             <ul className="mt-5 grid gap-1">
-              {links.map(([href, label]) => (
+              {links.filter(([href]) => !hide.includes(href)).map(([href, label]) => (
                 <li key={href}>
                   <Link href={brandHref(href)} className="inline-flex min-h-10 items-center text-[0.9375rem] text-charcoal/85 hover:text-charcoal">
                     {label}

@@ -8,7 +8,7 @@ import { SiteHeader } from "@/components/brand/site-header";
 import { Toaster } from "@/components/ui/toast";
 import { Concierge } from "@/components/concierge/concierge";
 import { SiteTracker } from "@/components/brand/site-tracker";
-import { getBrand, getBrandSlugs, getStudios } from "@/lib/brand/data";
+import { getBrand, getBrandSlugs, getLookbook, getStudios } from "@/lib/brand/data";
 import "../../../globals.css";
 
 /*
@@ -41,7 +41,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function BrandRootLayout({ children }: LayoutProps<"/b/[brand]">) {
   const slug = await brandParam();
-  const [brand, studios] = await Promise.all([getBrand(slug), getStudios(slug)]);
+  const [brand, studios, lookbook] = await Promise.all([getBrand(slug), getStudios(slug), getLookbook(slug)]);
+  const hide = lookbook.length ? [] : (["/lookbook"] as const);
   if (!brand) notFound();
   const flagship = studios.find((s) => s.isFlagship) ?? studios[0];
 
@@ -53,9 +54,9 @@ export default async function BrandRootLayout({ children }: LayoutProps<"/b/[bra
         </a>
         <SiteTracker brand={brand.slug} />
         <MotionProvider>
-          <SiteHeader name={brand.name} />
+          <SiteHeader name={brand.name} hide={[...hide]} />
           <main id="main">{children}</main>
-          <SiteFooter brand={brand} />
+          <SiteFooter brand={brand} hide={[...hide]} />
           {flagship && <Concierge brand={brand.slug} agentName={brand.agent_name} voiceSlug={flagship.salonSlug} nudge={brand.nudge} />}
         </MotionProvider>
         <Toaster />

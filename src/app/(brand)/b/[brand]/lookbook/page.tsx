@@ -33,7 +33,18 @@ export default async function LookbookPage() {
   return (
     <PageTransition>
       <JsonLd data={breadcrumbLd(brand, [["Home", "/"], ["Lookbook", "/lookbook"]])} />
-      <PageIntro eyebrow="Lookbook" lines={["Skin, hair", "and hands, after."]} />
+      <PageIntro
+        eyebrow="Lookbook"
+        lines={["Skin, hair", "and hands, after."]}
+        lead={items.length ? undefined : "Our lookbook of real guest results is being photographed, with every guest's consent. Until then, explore the rituals behind them."}
+      >
+        {!items.length && (
+          <div className="mt-8 flex flex-wrap gap-6 text-sm">
+            <Link href={brandHref("/services")} className="underline decoration-champagne underline-offset-4">See all treatments</Link>
+            <Link href={brandHref("/book")} className="underline decoration-champagne underline-offset-4">Book a ritual</Link>
+          </div>
+        )}
+      </PageIntro>
 
       {pairs.length > 0 && (
         <section aria-label="Before and after" className="container-page grid gap-16 pb-24">
