@@ -31,7 +31,7 @@ export default async function BookPage() {
       <h1 className="sr-only">Book an appointment</h1>
       <div className="mt-6">
         <Suspense fallback={<FlowSkeleton />}>
-          <BookingFlow brand={slug} deposit={deposit} treatments={treatments} studios={studios.map((s) => ({ slug: s.slug, city: s.city, area: s.area, lat: s.lat, lng: s.lng }))} />
+          <BookingFlow brand={slug} deposit={deposit} refundHours={brand?.deposit_refund_hours ?? 24} treatments={treatments} studios={studios.map((s) => ({ slug: s.slug, city: s.city, area: s.area, lat: s.lat, lng: s.lng }))} />
         </Suspense>
       </div>
     </div>

@@ -10,7 +10,7 @@ import { money } from "./prompt";
 import { toolDefs, type ToolDef } from "./tool-defs";
 import { logEvent } from "../events";
 import { settleDepositOnCancel } from "../payments/deposits";
-import { applyBookingPerks, checkGiftCard, cleanGiftCode, type BookingPayment } from "../payments/redemption";
+import { MEMBER_FREE_HOLDS, applyBookingPerks, checkGiftCard, cleanGiftCode, type BookingPayment } from "../payments/redemption";
 import { rateLimited } from "../rate-limit";
 
 export { toolDefs, type ToolDef };
@@ -24,6 +24,10 @@ export type ToolContext = {
 };
 
 type Args = Record<string, unknown>;
+
+/** What the agent tells the guest when her freed included treatment moved to another of her bookings. */
+const includedPassedNote = (t: ToolContext, b: { reference: string; starts_at: string; service: { name: string } | null }) =>
+  `Tell her: the included treatment from her membership now applies to her ${b.service?.name ?? "other booking"} on ${fmtDate(b.starts_at, t.ctx.salon.timezone)} at ${fmtTime(b.starts_at, t.ctx.salon.timezone)} (ref ${b.reference}), so that visit is now at no charge.`;
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 /** All branch ids of the entry branch's brand (or just the entry branch for standalone salons). */
@@ -114,7 +118,7 @@ async function webVerified(t: ToolContext, a: Args, phone: string) {
 }
 
 const APPOINTMENT_FIELDS =
-  "reference, starts_at, ends_at, status, price, deposit_amount, deposit_status, gift_card_amount, gift_card_state, member_benefit, member_discount, salon:salon_id (brand_name, area, name, timezone, currency), staff:staff_id (name), service:service_id (name)" as const;
+  "reference, starts_at, ends_at, status, price, deposit_amount, deposit_status, gift_card_amount, gift_card_state, member_benefit, member_discount, refund_by, salon:salon_id (brand_name, area, name, timezone, currency), staff:staff_id (name), service:service_id (name)" as const;
 
 /** One appointment as Shanaya reads it back: treatment, specialist, when, where, and how it's paid for. */
 function appointmentView(
@@ -122,7 +126,7 @@ function appointmentView(
   b: {
     reference: string; starts_at: string; ends_at: string; status: string; price: number;
     deposit_amount: number | null; deposit_status: string | null; gift_card_amount: number | null; gift_card_state: string | null;
-    member_benefit: string | null; member_discount: number | null;
+    member_benefit: string | null; member_discount: number | null; refund_by: string | null;
     salon: { brand_name: string | null; area: string | null; name: string; timezone: string; currency: string } | null;
     staff: { name: string } | null; service: { name: string } | null;
   },
@@ -147,8 +151,18 @@ function appointmentView(
     ...(gift > 0 && { paid_with_gift_card: gift }),
     ...(deposit > 0 && { deposit_paid: deposit }),
     pay_at_studio: Math.max(0, price - memberOff - gift - deposit),
+    ...(b.status === "confirmed" && windowPassed(b.refund_by) && {
+      late_change_note:
+        "The cancellation window for this appointment has passed. Before cancelling or moving it, tell her: " +
+        [deposit > 0 && "the deposit is kept", gift > 0 && "the gift card amount is kept", b.member_benefit === "included" && "her included membership treatment counts as used if she cancels"]
+          .filter(Boolean).join(", ") +
+        (deposit > 0 || gift > 0 || b.member_benefit === "included" ? "." : "nothing is lost, but the studio prefers more notice."),
+    }),
   };
 }
+
+/** Request-time check: is the booking past its refund deadline (late cancel / late move)? */
+const windowPassed = (refundBy: string | null) => !!refundBy && Date.parse(refundBy) <= Date.now();
 
 /** Readable text for any thrown value (database errors are plain objects, which would log as "[object Object]"). */
 function errorText(e: unknown) {
@@ -274,6 +288,13 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
     if (t.callId) await db.from("calls").update({ customer_id: ctx.salon.id === t.ctx.salon.id ? customer.id : null, outcome: "booked" }).eq("id", t.callId);
     return {
       ...paymentView(perks.payment, perks.noDeposit, ctx.salon.currency),
+      ...(perks.memberEndsAt && {
+        member_note: `Tell her: her membership ends on ${fmtDate(perks.memberEndsAt, ctx.salon.timezone)}, before this appointment, so member benefits don't apply to this visit and it is at the regular price. If she renews her membership before the visit, the studio can apply her benefits then. Offer an earlier date inside her membership if she prefers.`,
+      }),
+      // Only website chat takes deposits (phone bookings never do).
+      ...(perks.memberCapReached && t.channel === "web" && {
+        member_note: `Tell her: members can hold up to ${MEMBER_FREE_HOLDS} upcoming bookings without a deposit, and she already has that many, so this one needs the usual deposit. Her member benefits still apply.`,
+      }),
       success: true,
       reference: booking.reference,
       branch: displayName(ctx.salon),
@@ -360,12 +381,25 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
     const owned = await ownedBooking(t, a.reference, phoneFor(t, a.phone));
     const b = await rescheduleBooking(adminClient(), { salonId: owned.salon_id, reference: owned.reference, date: a.new_date, time: a.new_time });
     if (t.callId) await adminClient().from("calls").update({ outcome: "rescheduled" }).eq("id", t.callId);
-    return { success: true, reference: b.reference, therapist: b.staff?.name, date: a.new_date, time: a.new_time };
+    return {
+      success: true, reference: b.reference, therapist: b.staff?.name, date: a.new_date, time: a.new_time,
+      ...(b.memberBenefitLost && {
+        member_note: b.member_benefit === "discount"
+          ? `Tell her: her included treatment for that period is already used, so this visit is no longer included; her member discount of ${money(Number(b.member_discount ?? 0), t.ctx.salon.currency)} applies instead and she pays the rest at the studio. Offer to move it back or to another month if she prefers.`
+          : b.memberEndedBefore
+          ? `Tell her: her membership ends on ${fmtDate(b.memberEndedBefore, t.ctx.salon.timezone)}, before the new date, so member benefits don't apply to this visit and it is at the regular price. Offer a date before her membership ends, or say the studio can apply benefits if she renews first.`
+          : "Tell her: her included treatment for that period is already used, so this visit is no longer included and is paid at the studio. Offer to move it back or to another month if she prefers.",
+      }),
+      ...(b.includedPassedTo && { included_note: includedPassedNote(t, b.includedPassedTo) }),
+      ...(b.refundLocked && {
+        refund_note: "Tell her: because this change was made within the cancellation window, the amount already paid for this booking (deposit or gift card) is no longer refundable, even if she cancels later. It still comes off her bill when she visits.",
+      }),
+    };
   },
 
   async cancel_appointment(t, a) {
     const owned = await ownedBooking(t, a.reference, phoneFor(t, a.phone));
-    await cancelBooking(adminClient(), { salonId: owned.salon_id, reference: owned.reference, reason: str(a.reason) || "Cancelled by guest via AI" });
+    const cancelled = await cancelBooking(adminClient(), { salonId: owned.salon_id, reference: owned.reference, reason: str(a.reason) || "Cancelled by guest via AI" });
     if (t.callId) await adminClient().from("calls").update({ outcome: "cancelled" }).eq("id", t.callId);
     // Online bookings may carry a deposit: refunded with enough notice, otherwise kept (brand rule).
     const deposit = await settleDepositOnCancel(owned.salon_id, owned.reference);
@@ -377,6 +411,10 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
         : deposit === "card_returned" ? "Cancelled. The amount paid with her gift card is back on the card, ready to use again."
         : deposit === "card_kept" ? "Cancelled. Because it was cancelled late, the gift card amount used for it is kept, as per the booking terms."
         : "Cancelled.",
+      ...(cancelled.includedPassedTo && { included_note: includedPassedNote(t, cancelled.includedPassedTo) }),
+      ...(cancelled.includedUsedUp && {
+        member_note: "Tell her, kindly: this was her included membership treatment, and because it was cancelled within the cancellation window it counts as used for that period.",
+      }),
     };
   },
 

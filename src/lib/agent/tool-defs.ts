@@ -79,7 +79,7 @@ export const toolDefs: ToolDef[] = [
   },
   {
     name: "reschedule_appointment",
-    description: "Move an existing appointment (same branch) to a new date and time. Check availability first.",
+    description: "Move an existing appointment (same branch) to a new date and time. Check availability first. If find_appointments gave a late_change_note for it, tell her that note before moving it.",
     parameters: {
       type: "object",
       properties: {
@@ -93,7 +93,7 @@ export const toolDefs: ToolDef[] = [
   },
   {
     name: "cancel_appointment",
-    description: "Cancel an appointment after the guest confirms.",
+    description: "Cancel an appointment after the guest confirms. If find_appointments gave a late_change_note for it, tell her that note first and only cancel once she still wants to.",
     parameters: {
       type: "object",
       properties: {

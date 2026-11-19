@@ -7,6 +7,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { displayName, type SalonContext } from "./context";
 import { addDays, todayIn } from "../time";
 import { hoursRows, type Hours } from "../brand/hours";
+import { GIFT_CARD_VALIDITY_MONTHS, MEMBER_FREE_HOLDS } from "../payments/rules";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const money = (amount: number, currency: string) =>
@@ -66,7 +67,7 @@ ${medium}
 2. You need the branch, treatment, date, time and her name, plus a mobile number${voice ? " (on a phone call the caller's number is known: just confirm it; on a website call, ask for it)" : ""}.
 3. Read everything back in one sentence ("So that's the Celebrity Glow Facial at our Juhu studio on Saturday at four pm, under Priya, correct?") and wait for a clear yes before book_appointment.
 4. After booking, give the booking reference${voice ? " slowly, character by character" : ""}, the branch address, and a gentle reminder to arrive ten minutes early.
-5. To reschedule or cancel: ${voice ? "on a phone call, find_appointments with the caller's number; on a website call, ask for the booking reference and mobile number. Confirm which booking, then" : "ask for her booking reference and mobile number (for privacy, bookings are never listed online), then"} use reschedule_appointment or cancel_appointment.
+5. To reschedule or cancel: ${voice ? "on a phone call, find_appointments with the caller's number; on a website call, ask for the booking reference and mobile number and use find_appointments with them. Confirm which booking, then" : "ask for her booking reference and mobile number (for privacy, bookings are never listed online), look it up with find_appointments using both, then"} use reschedule_appointment or cancel_appointment. If the lookup gives a late_change_note, tell her first and go ahead only if she still wants to.
 
 ## Consultations and hand-offs
 - Medi-facials such as the Vampire Facial (PRP), Microneedling and Carbon Laser, and multi-visit programmes such as the Royal Bridal Glow and Honeymoon Ready, are arranged through a consultation. Describe them warmly, take her name, mobile number and preferred dates, then use request_callback with "Consultation: <treatment>". Never book them directly, and only say the team will call after request_callback succeeds.
@@ -177,6 +178,7 @@ ${directory}
 ${menu || "No services configured."}
 ${packageList ? `\n# Occasion packages (book single-visit ones by their [code])\n${packageList}\n` : ""}${profiles ? `\n# Guest profiles (how to recommend)\n${profiles}\n` : ""}
 ${perksSection(ctx, opts.mode ?? "chat")}
+${rulesSection(ctx, opts.mode ?? "chat")}
 # Policies
 ${salon.policies || "None."}
 
@@ -222,14 +224,65 @@ ${ctx.giftCards ? `- Gift card: take the code${voice ? ", read it back character
 `;
 }
 
+/**
+ * The booking money rules the system enforces (cancellation window, deposits, memberships, gift cards), built from
+ * the brand's live settings so what Shanaya says always matches what happens. Lives in the knowledge, so it reaches
+ * the saved Vapi assistant on every call without touching the owner's prompt edits.
+ */
+function rulesSection(ctx: SalonContext, mode: ConversationMode) {
+  const r = ctx.rules ?? { refundHours: 24, depositAmount: 0, depositsOn: false };
+  const h = r.refundHours;
+  const amount = money(r.depositAmount, ctx.salon.currency);
+  const tiers = ctx.memberships ?? [];
+  // Phone and website voice calls share one saved assistant, so their knowledge must be identical.
+  const lookup =
+    mode === "chat"
+      ? "find_appointments with her booking reference and mobile number"
+      : "find_appointments (on a phone call with the caller's number; on a website call with her booking reference and mobile number)";
+  const deposit = !r.depositsOn
+    ? "- Deposits: none are taken at the moment."
+    : mode === "chat"
+      ? `- Deposit: ${amount} for EACH treatment booked online (never more than that treatment's price), so three treatments mean three deposits. It holds the time for a few minutes until paid, comes off her bill at the studio, is refunded in full if she cancels at least ${h} hours before, and is kept for a later cancellation or a no-show.`
+      : `- Deposit: bookings made on this call need no deposit. Bookings on the website or website chat take ${amount} for each treatment (it comes off the bill; refunded if cancelled at least ${h} hours before, kept for later cancellations and no-shows).`;
+  return `
+# Booking rules (the system enforces these exactly; explain them when she asks, never promise an exception)
+- Cancellation window: cancelling or rescheduling is free up to ${h} hours before the appointment. Within ${h} hours it is a late change:
+  - a deposit or gift card amount paid for that booking is kept, not refunded;
+  - an included membership treatment counts as used for its month or quarter;
+  - she can still move it, but a deposit or gift card amount on it then stays non-refundable even if she cancels later (it still comes off her bill when she visits).
+- Before cancelling or moving any appointment, look it up first with ${lookup}. If the result has a late_change_note, tell her that note plainly and only go ahead once she still wants to.
+${deposit}
+${tiers.length ? `- Memberships:
+  - Benefits apply only to appointments within her membership's dates. A renewal bought early starts when the current membership ends and covers visits after that.
+  - Included treatments are per month or quarter (as listed above); unused ones don't carry over. Cancelled with at least ${h} hours' notice it comes back, and moves automatically to her next eligible booking in that period if she has one. A late cancellation or a no-show uses it up.
+  - Members book without a deposit for up to ${MEMBER_FREE_HOLDS} upcoming bookings at a time; another online booking needs the usual deposit (member prices still apply).
+  - The studio confirms the membership at the visit: she should bring the phone the membership is registered to.
+  - Membership refunds are handled by the studio team, never by you: the price paid minus the value of benefits already used. Take her details with request_callback.
+` : ""}${ctx.giftCards ? `- Gift cards: valid ${GIFT_CARD_VALIDITY_MONTHS} months from purchase. A card can be refunded only while it is completely unused, through the studio team (request_callback). Partly used cards can't be refunded; the balance stays on the card until it expires.
+` : ""}- If a question about these rules isn't covered here, don't guess: offer a call-back from the studio team.
+`;
+}
+
+/**
+ * How a voice call ends (phone and website calls). Lives in the knowledge, not the persona prompt, so it reaches the
+ * saved Vapi assistant without overwriting the owner's dashboard edits.
+ */
+const CLOSING_RULE = `
+# Ending the call
+- Once her request is done (a booking made, moved or cancelled, a call-back arranged, or her question answered), ask once, warmly: "Is there anything else I can help you with today?"
+- If she says no, thanks you, or says goodbye: give one short, warm goodbye in a single sentence (for example "Thank you, Priya. We look forward to seeing you on Saturday. Have a lovely day."), then use the endCall tool straight away. Don't add another question or offer after the goodbye.
+- If she says goodbye first, reply with that one-sentence goodbye and end the call.
+- Never end the call while she is still speaking, while a tool is running, before you have given her the booking reference and what she pays at the studio, or in the middle of a transfer_to_team.
+- If she asks for something else, help her, then ask again once that is done.`;
+
 /** Tells Shanaya which kind of conversation this is, so phone-only abilities aren't offered on the website. */
 function conversationNote(mode: ConversationMode, callerPhone?: string | null) {
   if (mode === "phone") {
     const id = callerPhone ? ` Caller's phone number: ${callerPhone} (confirm it's the best number for the booking).` : " Caller ID not available: ask for her mobile number.";
-    return `Phone call.${id} transfer_to_team is available if she needs a person.`;
+    return `Phone call.${id} transfer_to_team is available if she needs a person.\n${CLOSING_RULE}`;
   }
   if (mode === "web-voice") {
-    return "Voice call from the website. There is no caller ID: ask for her mobile number. Bookings and visit history are only shared with a booking reference plus mobile number. transfer_to_team is NOT available: use request_callback instead.";
+    return `Voice call from the website. There is no caller ID: ask for her mobile number. Bookings and visit history are only shared with a booking reference plus mobile number. transfer_to_team is NOT available: use request_callback instead.\n${CLOSING_RULE}`;
   }
   return "Typed chat on the website. There is no caller ID: ask for her mobile number. Bookings and visit history are only shared with a booking reference plus mobile number.";
 }

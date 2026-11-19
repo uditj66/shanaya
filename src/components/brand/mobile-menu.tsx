@@ -6,10 +6,10 @@ import * as m from "motion/react-m";
 import { brandHref } from "@/lib/brand/href";
 import { Button } from "@/components/ui/button";
 import { EASE_OUT_SOFT } from "@/components/motion/motion-provider";
-import { NAV } from "./site-header";
+import type { NAV } from "./site-header";
 
 /** Full-screen ivory menu for phones and tablets: large serif links, staggered in. */
-export function MobileMenu({ name }: { name: string }) {
+export function MobileMenu({ name, items }: { name: string; items: typeof NAV }) {
   const [open, setOpen] = useState(false);
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -34,7 +34,7 @@ export function MobileMenu({ name }: { name: string }) {
           </div>
           <nav aria-label="Main" className="container-page flex-1 overflow-y-auto py-10">
             <ul className="grid gap-2">
-              {NAV.map((n, i) => (
+              {items.map((n, i) => (
                 <m.li key={n.href} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE_OUT_SOFT, delay: 0.08 + i * 0.06 }}>
                   <Link href={brandHref(n.href)} onClick={() => setOpen(false)} className="display-cut block py-2 text-h2">
                     {n.label}

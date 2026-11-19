@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Tables } from "../database.types";
 
+/** Same rule as the website: sample rows show in development and previews, never on the live site unless asked. */
+const showSamples = () => process.env.SHOW_SAMPLE_CONTENT === "true" || (process.env.NODE_ENV !== "production" && process.env.SHOW_SAMPLE_CONTENT !== "false");
+
 export type SisterBranch = Pick<Tables<"salons">, "id" | "name" | "slug" | "city" | "area" | "address" | "phone" | "is_placeholder" | "business_hours">;
 
 export type SalonContext = {
@@ -12,6 +15,8 @@ export type SalonContext = {
   team?: { salon_id: string; name: string; title: string | null }[]; // every therapist/doctor/beautician across the brand
   memberships?: Pick<Tables<"memberships">, "name" | "price" | "period" | "benefits" | "discount_pct" | "skip_deposit" | "included_per_period" | "included_period" | "included_categories">[];
   giftCards?: boolean; // the brand sells gift cards that can pay for bookings
+  /** The brand's booking money rules (Website → Brand). Deposits are taken only on the website and in chat. */
+  rules?: { refundHours: number; depositAmount: number; depositsOn: boolean };
 };
 
 /** Everything the agent needs to know about one branch. */
@@ -32,15 +37,29 @@ export async function loadSalonContext(db: SupabaseClient<Database>, salonId: st
         .order("city")
     : { data: [] as SisterBranch[] };
   const ids = [salon.id, ...(branches ?? []).map((b) => b.id)];
-  const [{ data: team }, { data: memberships }] = await Promise.all([
+  const [{ data: team }, { data: memberships }, { data: brand }] = await Promise.all([
     db.from("staff").select("salon_id, name, title").in("salon_id", ids).eq("active", true).order("sort_order"),
     salon.brand_id
-      ? db.from("memberships").select("name, price, period, benefits, discount_pct, skip_deposit, included_per_period, included_period, included_categories").eq("brand_id", salon.brand_id).eq("published", true).order("sort_order")
+      ? (() => {
+          // Only tiers the website shows (and sells): sample tiers are hidden on the live site.
+          const q = db.from("memberships").select("name, price, period, benefits, discount_pct, skip_deposit, included_per_period, included_period, included_categories").eq("brand_id", salon.brand_id).eq("published", true);
+          return (showSamples() ? q : q.eq("is_sample", false)).order("sort_order");
+        })()
       : Promise.resolve({ data: [] as NonNullable<SalonContext["memberships"]> }),
+    salon.brand_id
+      ? db.from("brands").select("deposit_amount, deposit_refund_hours").eq("id", salon.brand_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+  // Same switch as the deposit code: a deposit is only taken when one is set and online payments are configured.
+  const paymentsOn = Boolean(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
   return {
     salon, services: services ?? [], staff: staff ?? [], packages: packages ?? [], branches: branches ?? [], team: team ?? [],
     memberships: memberships ?? [], giftCards: !!salon.brand_id,
+    rules: {
+      refundHours: brand?.deposit_refund_hours ?? 24,
+      depositAmount: brand?.deposit_amount ?? 0,
+      depositsOn: !!brand && brand.deposit_amount > 0 && paymentsOn,
+    },
   };
 }
 

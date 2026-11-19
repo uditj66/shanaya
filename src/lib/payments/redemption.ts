@@ -6,6 +6,7 @@
 import "server-only";
 import { adminClient } from "@/lib/supabase/admin";
 import type { MemberBenefit } from "@/lib/database.types";
+import { MEMBER_FREE_HOLDS } from "./rules";
 
 export const GIFT_CODE = /^[A-Z0-9-]{8,24}$/;
 export const cleanGiftCode = (raw: string) => raw.replace(/\s+/g, "").toUpperCase();
@@ -50,17 +51,21 @@ export type Member = {
   discountPct: number; skipDeposit: boolean; includedPerPeriod: number; includedPeriod: "month" | "quarter" | "year"; includedCategories: string[];
 };
 
-/** The guest's active membership with this brand, by mobile number (normalised, e.g. 919876543210). */
-export async function memberFor(brandId: string, phone: string): Promise<Member | null> {
-  const now = new Date().toISOString();
+/**
+ * The guest's active membership with this brand, by mobile number (normalised, e.g. 919876543210), that covers the
+ * moment `at` (default now). For a booking pass the appointment time: a renewal bought early starts when the current
+ * membership ends, so a visit after that date is covered by the renewal, not the current one.
+ */
+export async function memberFor(brandId: string, phone: string, at?: string): Promise<Member | null> {
+  const when = at ?? new Date().toISOString();
   const { data } = await adminClient()
     .from("membership_purchases")
     .select("id, tier_name, starts_at, ends_at, tier:membership_id (discount_pct, skip_deposit, included_per_period, included_period, included_categories)")
     .eq("brand_id", brandId)
     .eq("phone", phone)
     .eq("status", "active")
-    .lte("starts_at", now)
-    .gt("ends_at", now)
+    .lte("starts_at", when)
+    .gt("ends_at", when)
     .order("ends_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -73,32 +78,19 @@ export async function memberFor(brandId: string, phone: string): Promise<Member 
   };
 }
 
-/** "2026-11" / "2026-Q4" / "2026": which allowance period a start time falls in, in the studio's time zone. */
-export function periodKey(iso: string, period: Member["includedPeriod"], timezone: string) {
-  const [y, m] = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit" }).format(new Date(iso)).split("-");
-  return period === "year" ? y : period === "quarter" ? `${y}-Q${Math.ceil(Number(m) / 3)}` : `${y}-${m}`;
-}
-
 export type MemberPrice = { benefit: MemberBenefit; discount: number; tier: string; includedLeft?: number } | null;
 
-/** What the membership gives this booking: the included treatment if any allowance is left, else the discount. */
-export async function memberPrice(member: Member, service: { category: string; price: number }, startsAt: string, timezone: string, excludeBookingId?: string): Promise<MemberPrice> {
-  const price = Number(service.price);
-  if (member.includedPerPeriod > 0 && member.includedCategories.includes(service.category)) {
-    let q = adminClient()
-      .from("bookings")
-      .select("id, starts_at")
-      .eq("membership_purchase_id", member.purchaseId)
-      .eq("member_benefit", "included")
-      .neq("status", "cancelled");
-    if (excludeBookingId) q = q.neq("id", excludeBookingId);
-    const { data } = await q;
-    const key = periodKey(startsAt, member.includedPeriod, timezone);
-    const used = (data ?? []).filter((b) => periodKey(b.starts_at, member.includedPeriod, timezone) === key).length;
-    if (used < member.includedPerPeriod) return { benefit: "included", discount: price, tier: member.tier, includedLeft: member.includedPerPeriod - used - 1 };
-  }
-  if (member.discountPct > 0) return { benefit: "discount", discount: Math.round((price * member.discountPct) / 100), tier: member.tier };
-  return null;
+/**
+ * Give this booking its membership benefit: the included treatment while the period's allowance lasts, else the
+ * discount. Decided and recorded in one locked database step (claim_member_benefit), so two bookings made at the same
+ * moment can't both take the last included treatment.
+ */
+export async function claimMemberBenefit(bookingId: string, membershipPurchaseId: string): Promise<MemberPrice> {
+  const { data, error } = await adminClient().rpc("claim_member_benefit", { p_booking: bookingId, p_membership: membershipPurchaseId });
+  if (error) throw error;
+  const r = data as { benefit?: MemberBenefit; discount?: number; tier?: string; included_left?: number } | null;
+  if (!r?.benefit) return null;
+  return { benefit: r.benefit, discount: Number(r.discount ?? 0), tier: r.tier ?? "", ...(r.benefit === "included" && { includedLeft: Number(r.included_left ?? 0) }) };
 }
 
 export const PERIOD_WORD: Record<Member["includedPeriod"], string> = { month: "this month", quarter: "this quarter", year: "this year" };
@@ -120,13 +112,17 @@ export type BookingPayment = {
 export async function applyBookingPerks(
   bookingId: string,
   o: { brandId: string | null; phone: string; service: { category: string; price: number }; startsAt: string; timezone: string; giftCode?: string; refundHours: number },
-): Promise<{ ok: true; payment?: BookingPayment; noDeposit: boolean } | { ok: false; error: string }> {
+): Promise<{ ok: true; payment?: BookingPayment; noDeposit: boolean; memberEndsAt?: string; memberCapReached?: boolean } | { ok: false; error: string }> {
   const price = Number(o.service.price);
-  const member = o.brandId ? await memberFor(o.brandId, o.phone) : null;
-  const mp = member ? await memberPrice(member, o.service, o.startsAt, o.timezone, bookingId) : null;
-  if (mp && member) {
-    await adminClient().from("bookings").update({ membership_purchase_id: member.purchaseId, member_benefit: mp.benefit, member_discount: mp.discount }).eq("id", bookingId);
-  }
+  // The membership covering the appointment date (a renewal counts once it starts).
+  const member = o.brandId ? await memberFor(o.brandId, o.phone, o.startsAt) : null;
+  // None covers it but one is valid today: it ends before this visit, so the visit gets nothing (the database
+  // enforces this too). The caller tells the guest when it ends, so she can renew.
+  const current = !member && o.brandId ? await memberFor(o.brandId, o.phone) : null;
+  const memberEndsAt = current?.endsAt ?? undefined;
+  const mp = member ? await claimMemberBenefit(bookingId, member.purchaseId) : null;
+  // Members skip the deposit for up to MEMBER_FREE_HOLDS upcoming bookings at a time; more need the usual deposit.
+  const memberCapReached = !!member?.skipDeposit && (await upcomingMemberBookings(member.purchaseId, bookingId)) >= MEMBER_FREE_HOLDS;
   let due = Math.max(0, price - (mp?.discount ?? 0));
 
   let giftCard: BookingPayment["giftCard"];
@@ -154,5 +150,25 @@ export async function applyBookingPerks(
           refundHours: o.refundHours,
         }
       : undefined;
-  return { ok: true, payment, noDeposit: !!giftCard || !!member?.skipDeposit };
+  return {
+    ok: true, payment,
+    noDeposit: !!giftCard || (!!member?.skipDeposit && !memberCapReached),
+    ...(memberEndsAt && { memberEndsAt }),
+    ...(memberCapReached && { memberCapReached }),
+  };
+}
+
+export { MEMBER_FREE_HOLDS };
+
+/** The member's other upcoming confirmed bookings on this membership, held without a deposit. */
+async function upcomingMemberBookings(purchaseId: string, exceptBookingId: string) {
+  const { count } = await adminClient()
+    .from("bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("membership_purchase_id", purchaseId)
+    .eq("status", "confirmed")
+    .is("deposit_status", null)
+    .gt("starts_at", new Date().toISOString())
+    .neq("id", exceptBookingId);
+  return count ?? 0;
 }

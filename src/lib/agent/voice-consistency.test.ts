@@ -170,6 +170,12 @@ describe("audit fixes: chat vs voice", () => {
     expect(buildKnowledge(ctx, { mode: "chat", now: NOW })).toMatch(/Typed chat on the website/);
   });
 
+  it("voice calls get the closing rule; typed chat does not", () => {
+    expect(buildKnowledge(ctx, { mode: "phone", callerPhone: "+919000012345", now: NOW })).toMatch(/# Ending the call[\s\S]*endCall tool/);
+    expect(buildKnowledge(ctx, { mode: "web-voice", now: NOW })).toMatch(/# Ending the call/);
+    expect(buildKnowledge(ctx, { mode: "chat", now: NOW })).not.toMatch(/endCall|Ending the call/);
+  });
+
   it("knowledge no longer claims all branches share hours and prices", () => {
     expect(buildKnowledge(ctx, { now: NOW })).not.toMatch(/All branches share/);
   });

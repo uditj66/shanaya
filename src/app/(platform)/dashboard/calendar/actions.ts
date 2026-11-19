@@ -23,7 +23,12 @@ export async function moveBooking(input: z.input<typeof Input>): Promise<MoveRes
   try {
     const b = await rescheduleBooking(supabase, { salonId: salon.id, reference: v.data.reference, date: v.data.date, time: v.data.time, staffId: v.data.staffId });
     revalidatePath("/dashboard", "layout");
-    return { ok: true, message: `Moved to ${v.data.time}${b.staff?.name ? ` with ${b.staff.name}` : ""}.` };
+    const lost = !b.memberBenefitLost ? ""
+      : b.memberEndedBefore ? " The guest's membership ends before the new date, so member benefits no longer apply to this visit."
+      : b.member_benefit === "discount" ? " Its included member treatment for that period is already used, so the member discount applies instead."
+      : " Member benefits no longer apply to this visit.";
+    const passed = b.includedPassedTo ? ` The freed included treatment now goes to booking ${b.includedPassedTo.reference}.` : "";
+    return { ok: true, message: `Moved to ${v.data.time}${b.staff?.name ? ` with ${b.staff.name}` : ""}.${lost}${passed}` };
   } catch (e) {
     if (e instanceof BookingError) return { ok: false, error: e.message, alternatives: e.alternatives.map((a) => a.time) };
     console.error("[moveBooking]", e);

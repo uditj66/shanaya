@@ -33,6 +33,7 @@ export type Database = {
           deposit_amount: number | null; deposit_status: DepositStatus | null; hold_expires_at: string | null; pay_token: string | null;
           gift_card_id: string | null; gift_card_amount: number | null; gift_card_state: GiftCardUse | null;
           membership_purchase_id: string | null; member_benefit: MemberBenefit | null; member_discount: number | null;
+          member_included_from: string | null; refund_by: string | null; late_cancel: boolean;
         };
         Insert: {
           blocked_until: string; call_id?: string | null; cancel_reason?: string | null; created_at?: string; created_by?: string | null;
@@ -42,6 +43,7 @@ export type Database = {
           deposit_amount?: number | null; deposit_status?: DepositStatus | null; hold_expires_at?: string | null; pay_token?: string | null;
           gift_card_id?: string | null; gift_card_amount?: number | null; gift_card_state?: GiftCardUse | null;
           membership_purchase_id?: string | null; member_benefit?: MemberBenefit | null; member_discount?: number | null;
+          member_included_from?: string | null; refund_by?: string | null; late_cancel?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [
@@ -314,12 +316,14 @@ export type Database = {
           kind: Database["public"]["Enums"]["payment_kind"]; method: string | null; paid_at: string | null; payer_email: string | null;
           payer_name: string; payer_phone: string; razorpay_order_id: string; razorpay_payment_id: string | null; ref_id: string | null;
           refunded_at: string | null; salon_id: string | null; status: Database["public"]["Enums"]["payment_status"];
+          refund_amount: number | null;
         };
         Insert: {
           amount: number; brand_id: string; created_at?: string; currency?: string; error?: string | null; id?: string;
           kind: Database["public"]["Enums"]["payment_kind"]; method?: string | null; paid_at?: string | null; payer_email?: string | null;
           payer_name: string; payer_phone: string; razorpay_order_id: string; razorpay_payment_id?: string | null; ref_id?: string | null;
           refunded_at?: string | null; salon_id?: string | null; status?: Database["public"]["Enums"]["payment_status"];
+          refund_amount?: number | null;
         };
         Update: Partial<Database["public"]["Tables"]["payments"]["Insert"]>;
         Relationships: [];
@@ -393,6 +397,7 @@ export type Database = {
       };
     };
     Functions: {
+      claim_member_benefit: { Args: { p_booking: string; p_membership: string }; Returns: Json };
       hit_rate_limit: { Args: { p_key: string; p_limit: number; p_window_seconds: number }; Returns: boolean };
       redeem_gift_card: { Args: { p_code: string; p_amount: number; p_salon: string; p_note?: string }; Returns: Json };
       redeem_gift_card_for_booking: { Args: { p_code: string; p_booking: string; p_max: number }; Returns: Json };
