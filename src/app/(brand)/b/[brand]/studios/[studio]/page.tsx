@@ -122,7 +122,7 @@ async function StudioView({ params }: Pick<PageProps<"/b/[brand]/studios/[studio
                 </div>
               ))}
             </dl>
-            <p className="mt-6 text-sm text-stone">Please arrive 10 minutes early. Free cancellation up to 4 hours before.</p>
+            <p className="mt-6 text-sm text-stone">Please arrive 10 minutes early. Free cancellation or rescheduling up to {brand.deposit_refund_hours} hours before.</p>
           </div>
           <div className="md:col-span-7 md:col-start-6">
             <h2 className="sr-only">Map</h2>

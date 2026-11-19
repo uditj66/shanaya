@@ -6,7 +6,8 @@ import { logEvent } from "@/lib/events";
 import { capturePayment, fetchPayment } from "./razorpay";
 import { deliverDeposit } from "./deposits";
 
-export const GIFT_CARD_VALIDITY_MONTHS = 12;
+import { GIFT_CARD_VALIDITY_MONTHS } from "./rules";
+export { GIFT_CARD_VALIDITY_MONTHS };
 
 export { giftCardCode, viewToken } from "./codes";
 

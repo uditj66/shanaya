@@ -44,7 +44,7 @@ const to12 = (t: string) => {
 // Only render clock-dependent UI after hydration (server and browser clocks may sit either side of midnight).
 const useMounted = () => useSyncExternalStore(() => () => {}, () => true, () => false);
 
-export function BookingFlow({ brand, treatments, studios, deposit }: { brand: string; treatments: BookTreatment[]; studios: BookStudio[]; deposit?: { amount: number; refundHours: number } | null }) {
+export function BookingFlow({ brand, treatments, studios, deposit, refundHours = 24 }: { brand: string; treatments: BookTreatment[]; studios: BookStudio[]; deposit?: { amount: number; refundHours: number } | null; refundHours?: number }) {
   const params = useSearchParams();
   const mounted = useMounted();
   const sel = {
@@ -124,7 +124,7 @@ export function BookingFlow({ brand, treatments, studios, deposit }: { brand: st
           <AnimatePresence mode="wait" initial={false}>
             <m.div key={done ? "done" : step} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.5, ease: EASE_OUT_SOFT }}>
               {done ? (
-                <Confirmation state={done} />
+                <Confirmation state={done} refundHours={refundHours} />
               ) : holding ? (
                 <DepositStage
                   hold={holding}
@@ -141,7 +141,7 @@ export function BookingFlow({ brand, treatments, studios, deposit }: { brand: st
               ) : step === 2 ? (
                 <TimeStep brand={brand} sel={sel} mounted={mounted} onSpecialist={(s) => go({ specialist: s, time: "" }, true)} onDate={(d) => go({ date: d, time: "" }, true)} onTime={(date, time) => go({ date, time })} />
               ) : (
-                <DetailsStep brand={brand} sel={sel} consult={consult} price={treatment?.price ?? 0} deposit={deposit ? { ...deposit, amount: Math.max(1, Math.min(deposit.amount, Math.round(treatment?.price ?? deposit.amount))) } : null} action={action} pending={pending} state={state} onAlternative={(t) => go({ time: t }, true)} />
+                <DetailsStep brand={brand} sel={sel} consult={consult} price={treatment?.price ?? 0} deposit={deposit ? { ...deposit, amount: Math.max(1, Math.min(deposit.amount, Math.round(treatment?.price ?? deposit.amount))) } : null} action={action} pending={pending} state={state} onAlternative={(t) => go({ time: t }, true)} refundHours={refundHours} />
               )}
             </m.div>
           </AnimatePresence>
@@ -417,7 +417,9 @@ function DetailsStep({
   pending,
   state,
   onAlternative,
+  refundHours,
 }: {
+  refundHours: number;
   brand: string;
   sel: { service: string; studio: string; specialist: string; date: string; time: string };
   consult: boolean;
@@ -460,7 +462,7 @@ function DetailsStep({
           ? "This treatment begins with a consultation. Leave your details and the studio will call you to plan it around your dates."
           : deposit
             ? `A ₹${deposit.amount.toLocaleString("en-IN")} deposit holds your time and comes off your bill at the studio. Cancel at least ${deposit.refundHours} hours before for a full refund.`
-            : "You'll get your booking reference straight away. Reschedule or cancel free up to 4 hours before."}
+            : `You'll get your booking reference straight away. Reschedule or cancel free up to ${refundHours} hours before.`}
       </p>
       {!consult && (
         <p className="mt-3 max-w-[52ch] text-[0.8125rem] text-stone">
@@ -581,6 +583,7 @@ function DepositStage({ hold, onPaid, onRelease }: { hold: Extract<BookState, { 
         {hold.treatment} at {hold.studio}, {hold.when}
         {hold.specialist ? ` with ${hold.specialist}` : ""}. Pay the deposit to confirm it.
       </p>
+      {hold.memberEnds && <MemberEndsNote ends={hold.memberEnds} />}
       <div className="mt-8 max-w-xl rounded-2xl border border-line bg-white/60 p-6 md:p-8">
         <DepositPay token={hold.deposit.token} checkout={hold.deposit.checkout} amount={hold.deposit.amount} holdUntil={hold.deposit.holdUntil} refundHours={hold.deposit.refundHours} autoOpen onPaid={onPaid} onRelease={onRelease} />
       </div>
@@ -657,7 +660,16 @@ function PaymentSummary({ p }: { p: NonNullable<Extract<BookState, { kind: "book
   );
 }
 
-function Confirmation({ state }: { state: Extract<BookState, { ok: true }> }) {
+/** Her membership ends before this visit, so its benefits don't apply to it. */
+function MemberEndsNote({ ends }: { ends: string }) {
+  return (
+    <p className="mx-auto mt-6 max-w-[52ch] rounded-xl border border-champagne bg-white/60 px-5 py-4 text-sm text-stone">
+      Your membership ends on {ends}, before this visit, so member benefits don&apos;t apply to it. Renew before your visit and the studio will apply them.
+    </p>
+  );
+}
+
+function Confirmation({ state, refundHours }: { state: Extract<BookState, { ok: true }>; refundHours: number }) {
   const ics = () => {
     if (state.kind !== "booked") return "";
     const start = new Date(state.startsAt);
@@ -682,13 +694,14 @@ function Confirmation({ state }: { state: Extract<BookState, { ok: true }> }) {
             <span className="eyebrow">Booking reference</span>
             <span className="display-cut mt-2 text-h2 tracking-[0.12em]">{state.reference}</span>
           </p>
+          {state.memberEnds && <MemberEndsNote ends={state.memberEnds} />}
           {state.payment && <PaymentSummary p={state.payment} />}
           <p className="mt-6 text-sm text-stone">
             {state.payment?.giftCard
               ? `Keep this reference to reschedule or cancel. Cancel at least ${state.payment.refundHours} hours before and the gift card amount goes back on your card.`
               : state.depositPaid
               ? `Your ₹${state.depositPaid.toLocaleString("en-IN")} deposit is paid and comes off your bill. Keep this reference to reschedule or cancel; cancel at least ${state.depositRefundHours ?? 24} hours before for a full refund.`
-              : "Keep this reference to reschedule or cancel. Free changes up to 4 hours before."}
+              : `Keep this reference to reschedule or cancel. Free changes up to ${state.depositRefundHours ?? refundHours} hours before.`}
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             <Button asChild variant="quiet">

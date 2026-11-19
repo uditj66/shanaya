@@ -2,6 +2,7 @@
 // Public booking from the brand website. Same engine as the AI receptionist and the dashboard: the database itself
 // prevents double-booking, and consultation-only treatments become a call-back instead of a booking.
 import { headers } from "next/headers";
+import { formatInTimeZone } from "date-fns-tz";
 import { z } from "zod";
 import { adminClient } from "@/lib/supabase/admin";
 import { BookingError, createBooking } from "@/lib/booking-service";
@@ -33,11 +34,11 @@ export type BookState =
   | { ok: false; error: string; fieldErrors?: Record<string, string>; alternatives?: string[]; values?: Record<string, string> }
   | {
       ok: true; kind: "booked"; reference: string; when: string; studio: string; treatment: string; specialist: string | null; startsAt: string; minutes: number;
-      depositPaid?: number; depositRefundHours?: number; payment?: BookingPayment;
+      depositPaid?: number; depositRefundHours?: number; payment?: BookingPayment; memberEnds?: string;
     }
   | {
       ok: true; kind: "deposit"; reference: string; when: string; studio: string; treatment: string; specialist: string | null; startsAt: string; minutes: number;
-      deposit: { amount: number; holdUntil: string; token: string; refundHours: number; checkout: DepositCheckout };
+      deposit: { amount: number; holdUntil: string; token: string; refundHours: number; checkout: DepositCheckout }; memberEnds?: string;
     }
   | { ok: true; kind: "callback"; studio: string; treatment: string };
 
@@ -132,19 +133,21 @@ async function book(form: FormData): Promise<BookState> {
       await db.from("bookings").update({ status: "cancelled", cancel_reason: "Gift card couldn't be used" }).eq("id", booking.id);
       return { ok: false, error: perks.error, fieldErrors: { gift_code: perks.error } };
     }
+    // Her membership ends before this visit: no member benefits for it, and we say so.
+    const memberEnd = perks.memberEndsAt ? { memberEnds: formatInTimeZone(new Date(perks.memberEndsAt), r.salon.timezone, "d MMMM yyyy") } : {};
 
     // Online bookings hold the slot for a short time until the deposit is paid, unless a membership or gift card secures it.
     if (rules && !perks.noDeposit) {
       try {
         const h = await holdForDeposit(booking.id, rules, { name: v.name, phone, email: v.email || null });
-        return { ok: true, kind: "deposit", ...details, deposit: { amount: h.amount, holdUntil: h.holdUntil, token: h.token, refundHours: rules.refundHours, checkout: h.checkout } };
+        return { ok: true, kind: "deposit", ...details, ...memberEnd, deposit: { amount: h.amount, holdUntil: h.holdUntil, token: h.token, refundHours: rules.refundHours, checkout: h.checkout } };
       } catch (e) {
         console.error("[book] deposit", e);
         await db.from("bookings").update({ status: "cancelled", cancel_reason: "Payment provider unavailable" }).eq("id", booking.id);
         return { ok: false, error: "We couldn't reach the payment provider, so the time wasn't held. Please try again in a moment or call the studio." };
       }
     }
-    return { ok: true, kind: "booked", ...details, ...(perks.payment && { payment: perks.payment }) };
+    return { ok: true, kind: "booked", ...details, ...memberEnd, ...(perks.payment && { payment: perks.payment }) };
   } catch (e) {
     if (e instanceof BookingError) {
       return { ok: false, error: e.code === "unavailable" ? "That time was just taken. Here are the nearest free times." : e.message, alternatives: e.alternatives.map((a) => a.time) };

@@ -226,9 +226,25 @@ export async function rescheduleBooking(db: DB, input: { salonId: string; refere
       .from("bookings")
       .update({ staff_id: staffId, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), blocked_until: blockedUntil.toISOString() })
       .eq("id", b.id)
-      .select("id, reference, starts_at, staff:staff_id (name), service:service_id (name)")
+      .select("id, reference, starts_at, member_benefit, member_discount, staff:staff_id (name), service:service_id (name)")
       .single();
-    if (!error) return data;
+    // A database guard re-checks an included member treatment against its new date: if that month's (or quarter's)
+    // allowance is already used, it becomes the member discount instead. Callers tell the guest when that happens.
+    if (!error) {
+      // Moving an included treatment out of its period frees that period's allowance for her other booking there.
+      const includedPassedTo = b.member_benefit === "included" ? await includedPassedOn(db, b.id) : null;
+      const memberBenefitLost = !!b.member_benefit && data.member_benefit !== b.member_benefit && data.member_benefit !== "included";
+      // Lost entirely: the new date is outside the membership (it ends first). Callers say when it ends.
+      let memberEndedBefore: string | null = null;
+      if (memberBenefitLost && !data.member_benefit && b.membership_purchase_id) {
+        const { data: mp } = await db.from("membership_purchases").select("ends_at").eq("id", b.membership_purchase_id).maybeSingle();
+        if (mp?.ends_at && Date.parse(data.starts_at) >= Date.parse(mp.ends_at)) memberEndedBefore = mp.ends_at;
+      }
+      // Moved after the refund deadline: the deadline stays where it was (database rule), so a deposit or gift card
+      // payment on it can no longer be refunded. Callers tell the guest.
+      const refundLocked = !!b.refund_by && Date.parse(b.refund_by) <= Date.now() && (b.deposit_status === "paid" || b.gift_card_state === "used");
+      return { ...data, memberBenefitLost, memberEndedBefore, includedPassedTo, refundLocked };
+    }
     if (error.code !== EXCLUSION_VIOLATION) throw error;
   }
   throw new BookingError("unavailable", "That time was just taken");
@@ -237,7 +253,26 @@ export async function rescheduleBooking(db: DB, input: { salonId: string; refere
 export async function cancelBooking(db: DB, input: { salonId: string; reference: string; reason?: string }) {
   const b = await getBookingByRef(db, input.salonId, input.reference);
   if (!b || b.status !== "confirmed") throw new BookingError("not_found", "Booking not found");
-  const { error } = await db.from("bookings").update({ status: "cancelled", cancel_reason: input.reason ?? null }).eq("id", b.id);
+  // At or after the refund deadline it's a late cancel: a deposit or gift card payment is kept, and an included
+  // member treatment counts as used for its period (database rules key off late_cancel).
+  const lateCancel = !!b.refund_by && Date.parse(b.refund_by) <= Date.now();
+  const { error } = await db.from("bookings").update({ status: "cancelled", cancel_reason: input.reason ?? null, late_cancel: lateCancel }).eq("id", b.id);
   if (error) throw error;
-  return b;
+  // A database trigger passes a cancelled included treatment to her next eligible booking in the same period.
+  const includedPassedTo = b.member_benefit === "included" && !lateCancel ? await includedPassedOn(db, b.id) : null;
+  return { ...b, includedPassedTo, lateCancel, includedUsedUp: lateCancel && b.member_benefit === "included" };
+}
+
+/** The booking that took over the included treatment freed by `fromId` (see migration 20261121070000), if any. */
+async function includedPassedOn(db: DB, fromId: string) {
+  const { data } = await db
+    .from("bookings")
+    .select("id, reference, starts_at, service:service_id (name)")
+    .eq("member_included_from", fromId)
+    .eq("member_benefit", "included")
+    .eq("status", "confirmed")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
 }

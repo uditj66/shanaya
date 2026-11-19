@@ -232,7 +232,7 @@ export function ComponentDemos() {
               <DialogTrigger asChild>
                 <Button variant="quiet">Open dialog</Button>
               </DialogTrigger>
-              <DialogContent title="Cancellation policy" description="Free cancellation or rescheduling up to 4 hours before your appointment.">
+              <DialogContent title="Cancellation policy" description="Free cancellation or rescheduling up to 24 hours before your appointment.">
                 <DialogClose asChild>
                   <Button>Understood</Button>
                 </DialogClose>

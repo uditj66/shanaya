@@ -83,9 +83,9 @@ export async function depositCheckoutByToken(token: string) {
 }
 
 /**
- * One deposit can cover a whole chat visit: the other treatments she booked in the same chat, at the same studio,
- * on the same day carry no deposit of their own. When the visit's hold is released they are released with it
- * (here, and in the database's release_expired_holds), using this reason so a late payment can find them again.
+ * Legacy: chat visits used to share one deposit, and releasing its hold released the visit's other treatments with
+ * this reason. Each treatment has its own deposit now (migration 20261121090000); a late payment still restores any
+ * treatments released that way before the change.
  */
 export const VISIT_RELEASED = "Deposit for this visit not paid in time";
 const istDay = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(iso));
@@ -168,15 +168,20 @@ export async function settleDepositOnCancel(salonId: string, reference: string, 
   const db = adminClient();
   const { data: b } = await db
     .from("bookings")
-    .select("id, starts_at, deposit_status, gift_card_state, salon:salon_id (brand_id)")
+    .select("id, starts_at, refund_by, deposit_status, gift_card_state, salon:salon_id (brand_id)")
     .eq("salon_id", salonId)
     .eq("reference", reference)
     .maybeSingle();
   if (!b) return "none";
+  // Notice is measured against the booking's refund deadline, which a late reschedule can't move (database rule).
+  const deadline = async () => {
+    if (b.refund_by) return Date.parse(b.refund_by);
+    const { data: brand } = await db.from("brands").select("deposit_refund_hours").eq("id", b.salon?.brand_id ?? "").maybeSingle();
+    return Date.parse(b.starts_at) - (brand?.deposit_refund_hours ?? 24) * 3_600_000;
+  };
   // Paid with a gift card when booking online (no deposit is taken then): same notice rule as the deposit.
   if (b.gift_card_state === "used") {
-    const { data: brand } = await db.from("brands").select("deposit_refund_hours").eq("id", b.salon?.brand_id ?? "").maybeSingle();
-    const enoughNotice = Date.parse(b.starts_at) - Date.now() >= (brand?.deposit_refund_hours ?? 24) * 3_600_000;
+    const enoughNotice = Date.now() < (await deadline());
     if (opts.force || enoughNotice) return (await returnForBooking(b.id)) > 0 ? "card_returned" : "none";
     await db.from("bookings").update({ gift_card_state: "kept" }).eq("id", b.id);
     return "card_kept";
@@ -186,9 +191,7 @@ export async function settleDepositOnCancel(salonId: string, reference: string, 
     return "none";
   }
   if (b.deposit_status !== "paid") return "none";
-  const { data: brand } = await db.from("brands").select("deposit_refund_hours").eq("id", b.salon?.brand_id ?? "").maybeSingle();
-  const hours = brand?.deposit_refund_hours ?? 24;
-  const enoughNotice = Date.parse(b.starts_at) - Date.now() >= hours * 3_600_000;
+  const enoughNotice = Date.now() < (await deadline());
   if (opts.force || enoughNotice) {
     try {
       if (await refundDeposit(b.id, opts.force ? "Cancelled by the studio" : "Cancelled with notice")) return "refunded";
@@ -212,18 +215,15 @@ export async function settleDepositOnStatus(salonId: string, reference: string, 
     .eq("deposit_status", "paid");
 }
 
-/** Give up a hold straight away (the guest chose another time instead of paying), with the rest of that visit. */
+/**
+ * Give up a hold straight away (the guest chose another time instead of paying). Only that treatment: every
+ * treatment carries its own deposit now, and her other bookings may already be secured (member, gift card, paid).
+ */
 export async function releaseHold(bookingId: string) {
-  const db = adminClient();
-  const { data: released } = await db
+  await adminClient()
     .from("bookings")
     .update({ status: "cancelled", cancel_reason: "Deposit not paid", deposit_status: "expired", hold_expires_at: null })
     .eq("id", bookingId)
     .eq("deposit_status", "pending")
-    .eq("status", "confirmed")
-    .select("id, call_id, salon_id, customer_id, starts_at")
-    .maybeSingle();
-  if (!released) return;
-  const siblings = await visitSiblings(released, { status: "confirmed" });
-  if (siblings.length) await db.from("bookings").update({ status: "cancelled", cancel_reason: VISIT_RELEASED }).in("id", siblings.map((s) => s.id));
+    .eq("status", "confirmed");
 }

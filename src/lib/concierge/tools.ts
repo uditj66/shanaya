@@ -56,26 +56,8 @@ async function withDeposit(out: Record<string, unknown>, t: ToolContext): Promis
     .maybeSingle();
   if (!b) return out;
 
-  // One deposit per visit: another treatment she booked in this chat, same studio, same day, already carries it.
-  if (!b.deposit_status) {
-    const day = b.starts_at.slice(0, 10);
-    const { data: visit } = await db
-      .from("bookings")
-      .select("reference, deposit_status, starts_at")
-      .eq("call_id", t.callId)
-      .eq("salon_id", b.salon_id)
-      .eq("customer_id", b.customer_id)
-      .eq("status", "confirmed")
-      .in("deposit_status", ["pending", "paid"])
-      .neq("id", b.id);
-    const first = (visit ?? []).find((v) => v.starts_at.slice(0, 10) === day);
-    if (first) {
-      return {
-        ...out,
-        message: `Booked as part of the same visit. The deposit on booking ${first.reference} covers the whole visit${first.deposit_status === "pending" ? "; one payment on that card confirms everything" : ""}.`,
-      };
-    }
-  }
+  // One deposit per treatment (owner's rule): each treatment in a visit is held by its own deposit, so a late cancel
+  // of one keeps that treatment's deposit and the others are unaffected.
   let token = b.pay_token;
   let holdUntil = b.hold_expires_at;
   let amount = Number(b.deposit_amount ?? rules.amount);

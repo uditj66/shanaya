@@ -20,7 +20,7 @@ async function Payments({ searchParams }: { searchParams: Promise<{ status?: str
 
   let q = s.supabase
     .from("payments")
-    .select("id, kind, amount, status, method, payer_name, payer_phone, razorpay_payment_id, created_at, paid_at, refunded_at, error")
+    .select("id, kind, amount, status, method, payer_name, payer_phone, razorpay_payment_id, created_at, paid_at, refunded_at, refund_amount, error")
     .eq("brand_id", brandId ?? "00000000-0000-0000-0000-000000000000")
     .order("created_at", { ascending: false })
     .limit(200);
@@ -75,6 +75,9 @@ async function Payments({ searchParams }: { searchParams: Promise<{ status?: str
                   <td className="px-3 py-3 text-right tabular-nums">{money(p.amount / 100, s.salon.currency)}</td>
                   <td className="px-3 py-3">
                     <Badge tone={p.status === "paid" ? "confirmed" : p.status === "refunded" ? "done" : "cancelled"}>{p.status === "created" ? "abandoned" : p.status}</Badge>
+                    {p.status === "refunded" && p.refund_amount && p.refund_amount < p.amount && (
+                      <p className="mt-1 text-xs text-stone">{money(p.refund_amount / 100, s.salon.currency)} refunded (benefits used kept)</p>
+                    )}
                     {p.razorpay_payment_id && <p className="mt-1 font-mono text-[0.6875rem] text-stone">{p.razorpay_payment_id}</p>}
                   </td>
                   <td className="px-5 py-3 text-right">{p.status === "paid" && <RefundButton paymentId={p.id} label={money(p.amount / 100, s.salon.currency)} />}</td>
