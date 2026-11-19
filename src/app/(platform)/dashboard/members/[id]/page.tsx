@@ -1,15 +1,31 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
+import { ArrowLeft, CalendarRange, Gift, Percent, Sparkles } from "lucide-react";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireArea } from "@/lib/session";
 import { fmtHuman } from "@/lib/time";
-import { Badge, Card, Empty, PageHeader, Stat, money } from "@/components/dashboard-ui";
+import {
+  ButtonLink,
+  EmptyState,
+  PageHeader,
+  StatCard,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCard,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cn,
+  money,
+  type Tone,
+} from "@/components/admin/kit";
 import { UsageDots } from "@/components/usage-dots";
 import { USE_LABEL, benefitBookings, benefitState, isPast, periodUsage, savings, type Tier, type UseState } from "@/lib/dashboard/member-benefits";
 
-const USE_TONE: Record<UseState, string> = { redeemed: "converted", booked: "confirmed", unchecked: "contacted", no_show: "no_show", late_cancel: "no_show", cancelled: "closed" };
+const USE_TONE: Record<UseState, Tone> = { redeemed: "success", booked: "success", unchecked: "warning", no_show: "danger", late_cancel: "danger", cancelled: "neutral" };
 const PERIOD_NOUN = { month: "Month", quarter: "Quarter", year: "Year" } as const;
 
 async function Member({ params }: { params: Promise<{ id: string }> }) {
@@ -37,111 +53,125 @@ async function Member({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="grid gap-6">
-      <Link href="/dashboard/members" className="text-sm text-stone hover:text-charcoal">← All members</Link>
+      <div>
+        <ButtonLink href="/dashboard/members" variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
+          <ArrowLeft aria-hidden /> All members
+        </ButtonLink>
+      </div>
       <PageHeader
         eyebrow={`${m.tier_name} member`}
         title={m.name}
-        subtitle={`+${m.phone}${m.email ? ` · ${m.email}` : ""}${m.salon?.area ? ` · home studio ${m.salon.area}` : ""}`}
-        action={<Badge tone={state === "active" ? "confirmed" : state === "cancelled" ? "cancelled" : "done"}>{state}</Badge>}
+        description={`+${m.phone}${m.email ? ` · ${m.email}` : ""}${m.salon?.area ? ` · home studio ${m.salon.area}` : ""}`}
+        actions={<StatusBadge status={state} />}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
+      <section aria-label="Membership at a glance" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          icon={Sparkles}
           label={tier?.included_per_period ? `Included this ${PERIOD_NOUN[tier.included_period].toLowerCase()}` : "Included treatments"}
           value={current && tier ? `${current.left} left` : "—"}
           hint={current && tier ? `${current.redeemed + current.noShow} used · ${current.booked} booked · of ${current.allowance}` : "Not part of this tier"}
         />
-        <Stat label="Included treatments value" value={money(saved.includedValue, cur)} hint="Redeemed visits" />
-        <Stat label="Member discounts given" value={money(saved.discountValue, cur)} hint={tier?.discount_pct ? `${tier.discount_pct}% off other treatments` : undefined} />
-        <Stat
+        <StatCard icon={Gift} label="Included treatments value" value={money(saved.includedValue, cur)} hint="Redeemed visits" />
+        <StatCard icon={Percent} label="Member discounts given" value={money(saved.discountValue, cur)} hint={tier?.discount_pct ? `${tier.discount_pct}% off other treatments` : undefined} />
+        <StatCard
+          icon={CalendarRange}
           label="Valid"
           value={m.ends_at ? formatInTimeZone(new Date(m.ends_at), tz, "d MMM yyyy") : "—"}
           hint={m.starts_at ? `Since ${formatInTimeZone(new Date(m.starts_at), tz, "d MMM yyyy")} · ${money(m.price, cur)} a ${m.period}` : undefined}
         />
-      </div>
+      </section>
 
       {tier && tier.included_per_period > 0 && (
         <section className="grid gap-3">
-          <h2 className="display-cut text-[1.375rem]">Included treatments by {PERIOD_NOUN[tier.included_period].toLowerCase()}</h2>
-          <p className="text-sm text-stone">
-            {tier.included_per_period} included per {tier.included_period} ({tier.included_categories.join(", ") || "any category"}). Unused treatments don&apos;t carry over.
-          </p>
-          <Card className="overflow-x-auto p-0">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-[0.75rem] text-stone">
-                  <th className="px-5 py-3 font-medium">{PERIOD_NOUN[tier.included_period]}</th>
-                  <th className="px-3 py-3 font-medium">Usage</th>
-                  <th className="px-3 py-3 font-medium">Redeemed</th>
-                  <th className="px-3 py-3 font-medium">Booked</th>
-                  <th className="px-5 py-3 font-medium">Left</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
+          <div>
+            <h2 className="text-base font-semibold">Included treatments by {PERIOD_NOUN[tier.included_period].toLowerCase()}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {tier.included_per_period} included per {tier.included_period} ({tier.included_categories.join(", ") || "any category"}). Unused treatments don&apos;t carry over.
+            </p>
+          </div>
+          <TableCard>
+            <Table className="min-w-[560px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4">{PERIOD_NOUN[tier.included_period]}</TableHead>
+                  <TableHead>Usage</TableHead>
+                  <TableHead className="text-right">Redeemed</TableHead>
+                  <TableHead className="text-right">Booked</TableHead>
+                  <TableHead className="pr-4">Left</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {usage.map((u) => (
-                  <tr key={u.key} className={u.current ? "bg-cream/60" : undefined}>
-                    <td className="px-5 py-3 font-medium">{u.label}{u.current && <span className="ml-2 text-xs font-normal text-stone">current</span>}</td>
-                    <td className="px-3 py-3"><UsageDots total={u.allowance} used={u.redeemed + u.noShow} booked={u.booked} /></td>
-                    <td className="px-3 py-3 tabular-nums">{u.redeemed}{u.noShow ? <span className="text-xs text-danger"> + {u.noShow} missed</span> : null}</td>
-                    <td className="px-3 py-3 tabular-nums">{u.booked}</td>
-                    <td className="px-5 py-3 tabular-nums">
-                      {u.left === 0 ? <span className="text-stone">0</span> : u.past ? <span className="text-stone">{u.left} unused (expired)</span> : <span className="font-medium text-success">{u.left} available</span>}
-                    </td>
-                  </tr>
+                  <TableRow key={u.key} className={cn(u.current && "bg-muted/60")}>
+                    <TableCell className="pl-4 font-medium">
+                      {u.label}
+                      {u.current && <span className="ml-2 text-xs font-normal text-muted-foreground">current</span>}
+                    </TableCell>
+                    <TableCell><UsageDots total={u.allowance} used={u.redeemed + u.noShow} booked={u.booked} /></TableCell>
+                    <TableCell className="tabular text-right">
+                      {u.redeemed}
+                      {u.noShow ? <span className="text-xs text-destructive"> + {u.noShow} missed</span> : null}
+                    </TableCell>
+                    <TableCell className="tabular text-right">{u.booked}</TableCell>
+                    <TableCell className="tabular pr-4">
+                      {u.left === 0 ? <span className="text-muted-foreground">0</span> : u.past ? <span className="text-muted-foreground">{u.left} unused (expired)</span> : <span className="font-medium text-success">{u.left} available</span>}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </Card>
+              </TableBody>
+            </Table>
+          </TableCard>
         </section>
       )}
 
       <section className="grid gap-3">
-        <h2 className="display-cut text-[1.375rem]">Benefit history</h2>
-        <Card className="overflow-x-auto p-0">
+        <h2 className="text-base font-semibold">Benefit history</h2>
+        <TableCard>
           {bookings.length ? (
-            <table className="w-full min-w-[760px] text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-[0.75rem] text-stone">
-                  <th className="px-5 py-3 font-medium">When</th>
-                  <th className="px-3 py-3 font-medium">Treatment</th>
-                  <th className="px-3 py-3 font-medium">Benefit</th>
-                  <th className="px-3 py-3 font-medium">Value</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
+            <Table className="min-w-[760px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4">When</TableHead>
+                  <TableHead>Treatment</TableHead>
+                  <TableHead>Benefit</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                  <TableHead className="pr-4">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {bookings.map((b) => {
                   const st = benefitState(b);
                   return (
-                    <tr key={b.id} className="align-top">
-                      <td className="px-5 py-3 whitespace-nowrap">
+                    <TableRow key={b.id}>
+                      <TableCell className="pl-4 align-top">
                         {fmtHuman(b.starts_at, tz)}
-                        <p className="text-xs text-stone">#{b.reference}{b.salon ? ` · ${b.salon.area ?? b.salon.name}` : ""}</p>
-                      </td>
-                      <td className="px-3 py-3">{b.service?.name ?? "—"}</td>
-                      <td className="px-3 py-3">
+                        <p className="text-xs text-muted-foreground">#{b.reference}{b.salon ? ` · ${b.salon.area ?? b.salon.name}` : ""}</p>
+                      </TableCell>
+                      <TableCell className="align-top">{b.service?.name ?? "—"}</TableCell>
+                      <TableCell className="align-top">
                         {b.member_benefit === "included" ? "Included treatment" : "Member discount"}
                         {b.member_included_from && (
-                          <p className="text-xs text-stone">Passed on from {refOf.has(b.member_included_from) ? `#${refOf.get(b.member_included_from)}` : "a cancelled booking"}</p>
+                          <p className="text-xs text-muted-foreground">Passed on from {refOf.has(b.member_included_from) ? `#${refOf.get(b.member_included_from)}` : "a cancelled booking"}</p>
                         )}
-                      </td>
-                      <td className="px-3 py-3 tabular-nums">
+                      </TableCell>
+                      <TableCell className="tabular text-right align-top">
                         {money(Number(b.member_discount ?? 0), cur)}
-                        <p className="text-xs text-stone">of {money(b.price, cur)}</p>
-                      </td>
-                      <td className="px-5 py-3">
-                        <Badge tone={USE_TONE[st]}>{USE_LABEL[st]}</Badge>
-                        {st === "cancelled" && b.cancel_reason && <p className="mt-1 max-w-48 text-xs text-stone">{b.cancel_reason}</p>}
-                      </td>
-                    </tr>
+                        <p className="text-xs text-muted-foreground">of {money(b.price, cur)}</p>
+                      </TableCell>
+                      <TableCell className="pr-4 align-top">
+                        <StatusBadge tone={USE_TONE[st]} className="normal-case">{USE_LABEL[st]}</StatusBadge>
+                        {st === "cancelled" && b.cancel_reason && <p className="mt-1 max-w-48 whitespace-normal text-xs text-muted-foreground">{b.cancel_reason}</p>}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           ) : (
-            <Empty>No benefits used yet. Bookings made with this member&apos;s mobile number appear here.</Empty>
+            <EmptyState icon={Gift} title="No benefits used yet" description="Bookings made with this member's mobile number appear here." />
           )}
-        </Card>
+        </TableCard>
       </section>
     </div>
   );

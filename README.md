@@ -39,7 +39,9 @@ src/lib/agent/              prompt, tools, chat model setting, Vapi assistant bu
 src/app/api/vapi            Vapi webhook (all studios)
 src/app/api/concierge       website "Ask Shanaya" chat
 src/app/api/widget/[slug]/voice  starts a website voice call (Vapi)
-src/app/dashboard/*         staff dashboard
+src/app/(platform)/dashboard/*   staff dashboard (login + privacy sit beside it)
+src/components/admin/       dashboard UI kit: shadcn/ui primitives in ui/, shared blocks in kit.tsx
+src/app/admin-theme.css     dashboard light/dark theme tokens (scoped to html.admin)
 scripts/seed-owner.mts      creates a demo owner login
 scripts/smoke-test.mts      simulates a full phone call end to end
 ```

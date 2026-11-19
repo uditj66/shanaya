@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
+import { ChevronDown, Trash2 } from "lucide-react";
 import { requireSalon } from "@/lib/session";
 import { fmtHuman, todayIn } from "@/lib/time";
 import { addTimeOff, deleteTimeOff, saveStaff } from "../actions";
-import { Button, Card, Field, Input, PageHeader, Select } from "@/components/dashboard-ui";
+import { Button, Card, EmptyState, Field, Input, PageHeader, Section, Select, StatusBadge } from "@/components/admin/kit";
 import type { Tables } from "@/lib/database.types";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -21,99 +22,107 @@ async function Team({ searchParams }: { searchParams: Promise<{ error?: string }
   const staffForm = (s?: Tables<"staff">) => {
     const mine = (hours ?? []).filter((h) => h.staff_id === s?.id);
     return (
-      <form action={saveStaff} className="space-y-4">
+      <form action={saveStaff} className="grid gap-5">
         {s && <input type="hidden" name="id" value={s.id} />}
         <input type="hidden" name="hours" value="1" />
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-4">
           <Field label="Name"><Input name="name" required defaultValue={s?.name} /></Field>
           <Field label="Title"><Input name="title" defaultValue={s?.title ?? ""} placeholder="Skin Therapist" /></Field>
-          <Field label="Calendar colour"><Input name="color" type="color" defaultValue={s?.color ?? "#b4746b"} className="h-10 p-1" /></Field>
+          <Field label="Calendar colour"><Input name="color" type="color" defaultValue={s?.color ?? "#b4746b"} className="h-9 p-1" /></Field>
           <Field label="Status">
             <Select name="active" defaultValue={s?.active === false ? "off" : "on"}><option value="on">Active</option><option value="off">Inactive</option></Select>
           </Field>
         </div>
-        <div>
-          <span className="label">Weekly hours (second shift optional, e.g. after lunch)</span>
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium">
+            Weekly hours <span className="font-normal text-muted-foreground">(second shift optional, e.g. after lunch)</span>
+          </legend>
           <div className="grid gap-2">
             {DAYS.map((d, i) => {
               const day = mine.filter((h) => h.weekday === i);
               return (
                 <div key={d} className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="w-10 text-muted">{d}</span>
+                  <span className="w-10 text-muted-foreground">{d}</span>
                   {[0, 1].map((k) => (
-                    <span key={k} className="flex items-center gap-1">
-                      <Input type="time" name={`d${i}_s${k + 1}_start`} defaultValue={day[k]?.start_time.slice(0, 5) ?? (!s && k === 0 && i !== 2 ? "10:00" : "")} className="w-28" />
+                    <span key={k} className="flex items-center gap-1.5 text-muted-foreground">
+                      <Input type="time" aria-label={`${d} shift ${k + 1} start`} name={`d${i}_s${k + 1}_start`} defaultValue={day[k]?.start_time.slice(0, 5) ?? (!s && k === 0 && i !== 2 ? "10:00" : "")} className="tabular w-28" />
                       –
-                      <Input type="time" name={`d${i}_s${k + 1}_end`} defaultValue={day[k]?.end_time.slice(0, 5) ?? (!s && k === 0 && i !== 2 ? "19:00" : "")} className="w-28" />
+                      <Input type="time" aria-label={`${d} shift ${k + 1} end`} name={`d${i}_s${k + 1}_end`} defaultValue={day[k]?.end_time.slice(0, 5) ?? (!s && k === 0 && i !== 2 ? "19:00" : "")} className="tabular w-28" />
                     </span>
                   ))}
                 </div>
               );
             })}
           </div>
-          <p className="mt-1 text-xs text-muted">Leave a day blank for a day off.</p>
-        </div>
-        <Button>{s ? "Save" : "Add therapist"}</Button>
+          <p className="mt-2 text-xs text-muted-foreground">Leave a day blank for a day off.</p>
+        </fieldset>
+        <Button className="w-fit">{s ? "Save" : "Add therapist"}</Button>
       </form>
     );
   };
 
   return (
-    <div className="max-w-4xl">
-      <PageHeader title="Team & hours" subtitle="Who works when. The AI only offers times when a qualified therapist is free." />
-      {error && <p className="mb-4 text-sm text-danger">{error}</p>}
-      <div className="space-y-3">
+    <div className="grid max-w-4xl gap-6">
+      <PageHeader title="Team & hours" description="Who works when. The AI only offers times when a qualified therapist is free." />
+      {error && <p role="alert" className="-mt-4 text-sm text-destructive">{error}</p>}
+      <div className="grid gap-3">
         {staff?.map((s) => (
-          <Card key={s.id} className="p-0">
-            <details>
-              <summary className="flex cursor-pointer items-center gap-3 px-5 py-4">
-                <span className="h-3 w-3 rounded-full" style={{ background: s.color }} />
+          <Card key={s.id} className="gap-0 py-0">
+            <details className="group [&_summary::-webkit-details-marker]:hidden">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-5 py-4">
+                <span className="size-3 shrink-0 rounded-full" style={{ background: s.color }} aria-hidden />
                 <span className="font-medium">{s.name}</span>
-                <span className="text-sm text-muted">{s.title}</span>
-                <span className="ml-auto text-xs text-muted">
+                <span className="text-sm text-muted-foreground">{s.title}</span>
+                <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
                   {DAYS.filter((_, i) => hours?.some((h) => h.staff_id === s.id && h.weekday === i)).join(" ")}
-                  {!s.active && " · inactive"}
+                  {!s.active && <StatusBadge tone="neutral">inactive</StatusBadge>}
+                  {isAdmin && <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />}
                 </span>
               </summary>
-              {isAdmin && <div className="border-t border-line px-5 py-4">{staffForm(s)}</div>}
+              {isAdmin && <div className="border-t px-5 py-5">{staffForm(s)}</div>}
             </details>
           </Card>
         ))}
+        {!staff?.length && (
+          <Card className="py-0">
+            <EmptyState title="No therapists yet" description={isAdmin ? "Add your first therapist below." : undefined} />
+          </Card>
+        )}
       </div>
-      {isAdmin && (
-        <Card className="mt-6">
-          <h2 className="mb-3 font-serif text-xl font-semibold">Add a therapist</h2>
-          {staffForm()}
-        </Card>
-      )}
+      {isAdmin && <Section title="Add a therapist">{staffForm()}</Section>}
 
-      <h2 className="mt-10 mb-3 font-serif text-2xl font-semibold">Leave, breaks & closures</h2>
-      <Card>
-        <form action={addTimeOff} className="grid gap-3 sm:grid-cols-6 sm:items-end">
-          <div className="sm:col-span-2">
-            <Field label="Who">
-              <Select name="staff"><option value="">Whole studio (closed)</option>{staff?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select>
-            </Field>
-          </div>
+      <Section title="Leave, breaks & closures" description="Times when a therapist, or the whole studio, can't be booked.">
+        <form action={addTimeOff} className="grid gap-4 sm:grid-cols-6 sm:items-end">
+          <Field label="Who" className="sm:col-span-2">
+            <Select name="staff">
+              <option value="">Whole studio (closed)</option>
+              {staff?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          </Field>
           <Field label="From date"><Input type="date" name="date" required defaultValue={todayIn(salon.timezone)} /></Field>
           <Field label="From time"><Input type="time" name="start" /></Field>
           <Field label="To date"><Input type="date" name="end_date" /></Field>
           <Field label="To time"><Input type="time" name="end" /></Field>
-          <div className="sm:col-span-5"><Field label="Reason"><Input name="reason" placeholder="Leave, training, Diwali closure…" /></Field></div>
+          <Field label="Reason" className="sm:col-span-5"><Input name="reason" placeholder="Leave, training, Diwali closure…" /></Field>
           <Button variant="outline">Add</Button>
         </form>
-        <ul className="mt-4 divide-y divide-line text-sm">
+        <ul className="mt-5 divide-y border-t text-sm">
           {timeOff?.map((t) => (
-            <li key={t.id} className="flex items-center gap-3 py-2">
+            <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
               <span className="font-medium">{t.staff_id ? name.get(t.staff_id) : "Whole studio"}</span>
-              <span className="text-muted">{fmtHuman(t.starts_at, salon.timezone)} → {fmtHuman(t.ends_at, salon.timezone)}</span>
-              <span className="text-muted">{t.reason}</span>
-              <form action={deleteTimeOff} className="ml-auto"><input type="hidden" name="id" value={t.id} /><button className="text-xs text-danger">Remove</button></form>
+              <span className="tabular text-muted-foreground">{fmtHuman(t.starts_at, salon.timezone)} → {fmtHuman(t.ends_at, salon.timezone)}</span>
+              <span className="text-muted-foreground">{t.reason}</span>
+              <form action={deleteTimeOff} className="ml-auto">
+                <input type="hidden" name="id" value={t.id} />
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                  <Trash2 aria-hidden /> Remove
+                </Button>
+              </form>
             </li>
           ))}
-          {!timeOff?.length && <li className="py-2 text-muted">No upcoming leave or closures.</li>}
+          {!timeOff?.length && <li className="py-3 text-muted-foreground">No upcoming leave or closures.</li>}
         </ul>
-      </Card>
+      </Section>
     </div>
   );
 }

@@ -3,7 +3,25 @@ import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireSalon } from "@/lib/session";
 import { fmtHuman } from "@/lib/time";
 import { setBookingStatus } from "../actions";
-import { Badge, ButtonLink, Card, Empty, Input, PageHeader, Select, money } from "@/components/dashboard-ui";
+import { CalendarPlus, CalendarSearch } from "lucide-react";
+import {
+  Button,
+  ButtonLink,
+  EmptyState,
+  FilterBar,
+  Input,
+  PageHeader,
+  Select,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCard,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  money,
+} from "@/components/admin/kit";
 
 /** Online bookings carry a deposit; the desk takes a paid one off the bill. */
 const DEPOSIT_LABEL: Record<string, string> = { pending: "Awaiting deposit", paid: "Deposit paid, take off bill:", applied: "Deposit used", refunded: "Deposit refunded", forfeited: "Deposit kept" };
@@ -28,57 +46,106 @@ async function Bookings({ searchParams }: { searchParams: Promise<{ ref?: string
   const rows = (data ?? []).filter((b) => !q || b.customer?.name.toLowerCase().includes(q) || b.customer?.phone.includes(q.replace(/\D/g, "") || "§"));
 
   return (
-    <div>
-      <PageHeader title="Bookings" subtitle="Every appointment, whoever booked it: phone AI, website AI or your team." action={<ButtonLink href="/dashboard/bookings/new">+ New booking</ButtonLink>} />
-      <form className="mb-4 flex flex-wrap gap-2">
-        <Select name="when" defaultValue={when} className="w-auto"><option value="upcoming">Upcoming</option><option value="past">Past</option></Select>
-        <Select name="status" defaultValue={sp.status ?? ""} className="w-auto">
-          <option value="">All statuses</option>
-          {["confirmed", "completed", "cancelled", "no_show"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-        </Select>
-        <Input name="q" defaultValue={sp.q} placeholder="Search guest name or phone" className="w-64" />
-        <button className="rounded-lg border border-line bg-white px-4 text-sm">Filter</button>
-      </form>
-      <Card className="overflow-x-auto p-0">
-        {!rows.length ? <Empty>No bookings found.</Empty> : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
-              <tr>{["When", "Guest", "Service", "Therapist", "Value", "Source", "Status", ""].map((h) => <th key={h} className="px-4 py-3 font-medium">{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {rows.map((b) => (
-                <tr key={b.id} className="border-b border-line last:border-0 align-top">
-                  <td className="px-4 py-3 whitespace-nowrap">{fmtHuman(b.starts_at, salon.timezone)}<div className="text-xs text-muted">#{b.reference}</div></td>
-                  <td className="px-4 py-3">{b.customer?.name}<div className="text-xs text-muted">+{b.customer?.phone}</div></td>
-                  <td className="px-4 py-3">{b.service?.name}{b.notes && <div className="max-w-56 text-xs text-gold-dark">Note: {b.notes}</div>}</td>
-                  <td className="px-4 py-3">{b.staff?.name}</td>
-                  <td className="px-4 py-3">
-                    {money(b.price, salon.currency)}
-                    <PaidOnline b={b} currency={salon.currency} />
-                  </td>
-                  <td className="px-4 py-3"><Badge tone={b.source}>{b.source === "staff" ? "staff" : `AI ${b.source}`}</Badge></td>
-                  <td className="px-4 py-3">
-                    <Badge>{b.status}</Badge>
-                    {b.deposit_status && b.deposit_status !== "expired" && (
-                      <p className="mt-1 text-xs text-stone">{DEPOSIT_LABEL[b.deposit_status]} ₹{Number(b.deposit_amount ?? 0).toLocaleString("en-IN")}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {b.status === "confirmed" && (
-                      <form action={setBookingStatus} className="flex gap-1">
-                        <input type="hidden" name="reference" value={b.reference} />
-                        <button name="status" value="completed" className="rounded px-2 py-1 text-xs hover:bg-cream">Done</button>
-                        <button name="status" value="no_show" className="rounded px-2 py-1 text-xs hover:bg-cream">No-show</button>
-                        <button name="status" value="cancelled" className="rounded px-2 py-1 text-xs text-danger hover:bg-danger/10">Cancel</button>
-                      </form>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+    <div className="grid gap-6">
+      <PageHeader
+        title="Bookings"
+        description="Every appointment, whoever booked it: phone AI, website AI or your team."
+        actions={
+          <ButtonLink href="/dashboard/bookings/new">
+            <CalendarPlus aria-hidden /> New booking
+          </ButtonLink>
+        }
+      />
+      <div>
+        <FilterBar>
+          <Select name="when" defaultValue={when} aria-label="When">
+            <option value="upcoming">Upcoming</option>
+            <option value="past">Past</option>
+          </Select>
+          <Select name="status" defaultValue={sp.status ?? ""} aria-label="Status">
+            <option value="">All statuses</option>
+            {["confirmed", "completed", "cancelled", "no_show"].map((s) => (
+              <option key={s} value={s}>
+                {s.replace("_", " ")}
+              </option>
+            ))}
+          </Select>
+          <Input name="q" defaultValue={sp.q} placeholder="Search guest name or phone" aria-label="Search guest name or phone" className="w-64" />
+          <Button variant="outline">Filter</Button>
+        </FilterBar>
+        <TableCard>
+          {!rows.length ? (
+            <EmptyState icon={CalendarSearch} title="No bookings found" description="Try another filter or search." />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>When</TableHead>
+                  <TableHead>Guest</TableHead>
+                  <TableHead>Service</TableHead>
+                  <TableHead>Therapist</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((b) => (
+                  <TableRow key={b.id} className="align-top">
+                    <TableCell>
+                      {fmtHuman(b.starts_at, salon.timezone)}
+                      <div className="text-xs text-muted-foreground">#{b.reference}</div>
+                    </TableCell>
+                    <TableCell>
+                      {b.customer?.name}
+                      <div className="tabular text-xs text-muted-foreground">+{b.customer?.phone}</div>
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
+                      {b.service?.name}
+                      {b.notes && <div className="max-w-56 text-xs text-primary">Note: {b.notes}</div>}
+                    </TableCell>
+                    <TableCell>{b.staff?.name}</TableCell>
+                    <TableCell className="tabular text-right">
+                      {money(b.price, salon.currency)}
+                      <PaidOnline b={b} currency={salon.currency} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={b.source}>{b.source === "staff" ? "staff" : `AI ${b.source}`}</StatusBadge>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={b.status} />
+                      {b.deposit_status && b.deposit_status !== "expired" && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {DEPOSIT_LABEL[b.deposit_status]} ₹{Number(b.deposit_amount ?? 0).toLocaleString("en-IN")}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {b.status === "confirmed" && (
+                        <form action={setBookingStatus} className="flex gap-1">
+                          <input type="hidden" name="reference" value={b.reference} />
+                          <Button name="status" value="completed" variant="ghost" size="xs">
+                            Done
+                          </Button>
+                          <Button name="status" value="no_show" variant="ghost" size="xs">
+                            No-show
+                          </Button>
+                          <Button name="status" value="cancelled" variant="ghost" size="xs" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                            Cancel
+                          </Button>
+                        </form>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TableCard>
+      </div>
     </div>
   );
 }
@@ -96,7 +163,7 @@ function PaidOnline({ b, currency }: {
   const deposit = b.deposit_status === "paid" ? Number(b.deposit_amount ?? 0) : 0;
   const collect = Math.max(0, Number(b.price) - memberOff - gift - deposit);
   return (
-    <div className="mt-1 grid gap-0.5 text-xs text-stone">
+    <div className="mt-1 grid gap-0.5 text-xs font-normal text-muted-foreground">
       {b.member_benefit && (
         <span>
           {b.membership?.tier_name ?? "Member"}: {b.member_benefit === "included" ? "included treatment" : `−${money(memberOff, currency)}`} · check membership
@@ -108,7 +175,7 @@ function PaidOnline({ b, currency }: {
           {b.gift_card?.code ? ` (${b.gift_card.code})` : ""}
         </span>
       )}
-      {b.status === "confirmed" && <span className="font-medium text-charcoal">Collect {collect > 0 ? money(collect, currency) : "nothing"}</span>}
+      {b.status === "confirmed" && <span className="font-medium text-foreground">Collect {collect > 0 ? money(collect, currency) : "nothing"}</span>}
     </div>
   );
 }

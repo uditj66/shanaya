@@ -1,13 +1,15 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Hand, SendHorizontal, Undo2 } from "lucide-react";
+import { Button, Textarea } from "@/components/admin/kit";
 import { sendTeamReply, setTakeover } from "./actions";
 
 /** Take over a website chat, reply as the team, and hand it back to the AI. Refreshes while the chat is live. */
 export function TeamReply({ callId, takenBy, agentName }: { callId: string; takenBy: string | null; agentName: string }) {
   const router = useRouter();
   const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   // While a team member is answering, pull in the guest's new messages every few seconds.
@@ -19,31 +21,30 @@ export function TeamReply({ callId, takenBy, agentName }: { callId: string; take
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) =>
     start(async () => {
-      setError(null);
       const r = await fn();
-      if (!r.ok) setError(r.error ?? "Something went wrong.");
+      if (!r.ok) toast.error(r.error ?? "Something went wrong.");
       else after?.();
     });
 
   return (
-    <div className="border-t border-line bg-ivory/60 p-4">
+    <div className="border-t bg-muted/40 p-4">
       <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
         {takenBy ? (
           <>
-            <span className="inline-flex items-center gap-2 text-charcoal">
+            <span className="inline-flex items-center gap-2">
               <span aria-hidden="true" className="size-2 rounded-full bg-success" />
               {takenBy} is answering. {agentName} is paused.
             </span>
-            <button type="button" disabled={pending} onClick={() => run(() => setTakeover(callId, false))} className="ml-auto min-h-9 rounded-full px-3 text-stone ring-1 ring-line hover:text-charcoal disabled:opacity-50">
-              Hand back to {agentName}
-            </button>
+            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => run(() => setTakeover(callId, false))} className="ml-auto">
+              <Undo2 aria-hidden /> Hand back to {agentName}
+            </Button>
           </>
         ) : (
           <>
-            <span className="text-stone">{agentName} is handling this chat.</span>
-            <button type="button" disabled={pending} onClick={() => run(() => setTakeover(callId, true))} className="ml-auto min-h-9 rounded-full bg-charcoal px-4 text-ivory disabled:opacity-50">
-              Take over
-            </button>
+            <span className="text-muted-foreground">{agentName} is handling this chat.</span>
+            <Button type="button" size="sm" disabled={pending} onClick={() => run(() => setTakeover(callId, true))} className="ml-auto">
+              <Hand aria-hidden /> Take over
+            </Button>
           </>
         )}
       </div>
@@ -55,8 +56,10 @@ export function TeamReply({ callId, takenBy, agentName }: { callId: string; take
         }}
         className="flex items-end gap-2"
       >
-        <label htmlFor="team-reply" className="sr-only">Reply to the guest</label>
-        <textarea
+        <label htmlFor="team-reply" className="sr-only">
+          Reply to the guest
+        </label>
+        <Textarea
           id="team-reply"
           rows={2}
           value={text}
@@ -69,13 +72,13 @@ export function TeamReply({ callId, takenBy, agentName }: { callId: string; take
             }
           }}
           placeholder={takenBy ? "Write to the guest…" : "Reply as the team (this pauses the AI)…"}
-          className="field min-h-12 flex-1 resize-none"
+          className="min-h-12 flex-1 resize-none bg-background"
         />
-        <button disabled={pending || !text.trim()} className="min-h-11 rounded-full bg-charcoal px-5 text-sm text-ivory disabled:opacity-40">
+        <Button disabled={pending || !text.trim()}>
+          <SendHorizontal aria-hidden />
           {pending ? "Sending…" : "Send"}
-        </button>
+        </Button>
       </form>
-      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
     </div>
   );
 }

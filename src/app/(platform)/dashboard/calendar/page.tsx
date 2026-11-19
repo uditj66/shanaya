@@ -1,13 +1,12 @@
 import { Suspense } from "react";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
-import Link from "next/link";
 import type { Route } from "next";
 import { formatInTimeZone } from "date-fns-tz";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { requireArea } from "@/lib/session";
 import { loadCalendar } from "@/lib/dashboard/calendar";
 import { addDays, isDate, todayIn, zonedToDate } from "@/lib/time";
-import { ButtonLink, Card, PageHeader } from "@/components/dashboard-ui";
+import { ButtonLink, Card, EmptyState, PageHeader, SegmentedNav } from "@/components/admin/kit";
 import { CalendarBoard } from "./board";
 
 type SP = { date?: string; view?: string; staff?: string };
@@ -30,32 +29,53 @@ async function CalendarPage({ searchParams }: { searchParams: Promise<SP> }) {
       : formatInTimeZone(zonedToDate(date, "12:00", tz), tz, "EEEE d MMMM");
 
   return (
-    <div>
+    <div className="grid gap-6">
       <PageHeader
         eyebrow={s.salon.area ?? s.salon.name}
         title={label}
-        subtitle={s.isAll ? "Showing the flagship studio. Pick a studio in the sidebar to see its calendar." : view === "week" ? `Week for ${cal.staff.find((x) => x.id === cal.focus)?.name ?? "therapist"}` : `${cal.columns.length} therapists`}
-        action={
-          <div className="flex flex-wrap items-center gap-2">
+        description={
+          s.isAll
+            ? "Showing the flagship studio. Pick a studio in the sidebar to see its calendar."
+            : view === "week"
+              ? `Week for ${cal.staff.find((x) => x.id === cal.focus)?.name ?? "therapist"}`
+              : `${cal.columns.length} therapists`
+        }
+        actions={
+          <>
             {s.role !== "stylist" && (
-              <div className="flex rounded-full border border-line bg-white/70 p-1 text-sm" role="group" aria-label="View">
-                <Link href={q({ view: "day" })} aria-current={view === "day" ? "page" : undefined} className={`rounded-full px-3 py-1.5 ${view === "day" ? "bg-charcoal text-ivory" : "text-stone hover:text-charcoal"}`}>Day</Link>
-                <Link href={q({ view: "week" })} aria-current={view === "week" ? "page" : undefined} className={`rounded-full px-3 py-1.5 ${view === "week" ? "bg-charcoal text-ivory" : "text-stone hover:text-charcoal"}`}>Week</Link>
-              </div>
+              <SegmentedNav label="View" items={(["day", "week"] as const).map((v) => ({ href: q({ view: v }), label: v === "day" ? "Day" : "Week", active: view === v }))} />
             )}
-            <ButtonLink variant="outline" href={q({ date: addDays(date, -step) })} aria-label="Previous"><ChevronLeft strokeWidth={1.5} /></ButtonLink>
-            <ButtonLink variant="outline" href={q({ date: todayIn(tz) })}>Today</ButtonLink>
-            <ButtonLink variant="outline" href={q({ date: addDays(date, step) })} aria-label="Next"><ChevronRight strokeWidth={1.5} /></ButtonLink>
-            {s.role !== "stylist" && <ButtonLink href={`/dashboard/bookings/new?date=${date}`}>New booking</ButtonLink>}
-          </div>
+            <div className="flex items-center gap-1">
+              <ButtonLink variant="outline" size="icon" href={q({ date: addDays(date, -step) })} aria-label="Previous">
+                <ChevronLeft aria-hidden />
+              </ButtonLink>
+              <ButtonLink variant="outline" href={q({ date: todayIn(tz) })}>
+                Today
+              </ButtonLink>
+              <ButtonLink variant="outline" size="icon" href={q({ date: addDays(date, step) })} aria-label="Next">
+                <ChevronRight aria-hidden />
+              </ButtonLink>
+            </div>
+            {s.role !== "stylist" && (
+              <ButtonLink href={`/dashboard/bookings/new?date=${date}`}>
+                <CalendarPlus aria-hidden /> New booking
+              </ButtonLink>
+            )}
+          </>
         }
       />
       {view === "week" && s.role !== "stylist" && (
-        <nav aria-label="Therapist" className="-mt-3 mb-5 flex flex-wrap gap-2">
+        <nav aria-label="Therapist" className="-mt-6 flex flex-wrap gap-2">
           {cal.staff.map((p) => (
-            <Link key={p.id} href={q({ staff: p.id })} aria-current={cal.focus === p.id ? "page" : undefined} className={`min-h-9 rounded-full border px-3.5 py-1.5 text-sm ${cal.focus === p.id ? "border-charcoal bg-charcoal text-ivory" : "border-line text-stone hover:border-champagne hover:text-charcoal"}`}>
+            <ButtonLink
+              key={p.id}
+              href={q({ staff: p.id })}
+              aria-current={cal.focus === p.id ? "page" : undefined}
+              variant={cal.focus === p.id ? "default" : "outline"}
+              size="sm"
+            >
               {p.name}
-            </Link>
+            </ButtonLink>
           ))}
         </nav>
       )}
@@ -70,7 +90,9 @@ async function CalendarPage({ searchParams }: { searchParams: Promise<SP> }) {
           canMove={s.role !== "stylist" && !s.isAll}
         />
       ) : (
-        <Card><p className="py-10 text-center text-sm text-stone">No active therapists yet. Add your team in Team &amp; hours.</p></Card>
+        <Card>
+          <EmptyState icon={Users} title="No active therapists yet" description="Add your team in Team & hours." />
+        </Card>
       )}
     </div>
   );

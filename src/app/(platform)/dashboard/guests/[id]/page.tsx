@@ -3,9 +3,10 @@ import Link from "next/link";
 import type { Route } from "next";
 import { notFound } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
+import { CalendarCheck, CalendarClock, CalendarPlus, Heart, IndianRupee } from "lucide-react";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireArea } from "@/lib/session";
-import { Badge, Card, Empty, PageHeader, Stat, money } from "@/components/dashboard-ui";
+import { ButtonLink, EmptyState, PageHeader, Section, StatCard, StatusBadge, money } from "@/components/admin/kit";
 import { GuestForm } from "./guest-form";
 
 /** Past visits (not cancelled) and upcoming confirmed bookings, soonest first. Runs at request time (dynamic page). */
@@ -50,71 +51,74 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
       <PageHeader
         eyebrow="Guest"
         title={g.name}
-        subtitle={`+${g.phone}${g.email ? ` · ${g.email}` : ""} · guest since ${formatInTimeZone(new Date(g.created_at), tz, "MMM yyyy")}${member ? ` · ${member.tier_name} member until ${formatInTimeZone(new Date(member.ends_at!), tz, "d MMM yyyy")}` : ""}`}
-        action={s.role !== "stylist" ? <Link href={`/dashboard/bookings/new?phone=${g.phone}&name=${encodeURIComponent(g.name)}` as Route} className="inline-flex min-h-10 items-center rounded-full bg-charcoal px-4 text-sm text-ivory">Book again</Link> : null}
+        description={`+${g.phone}${g.email ? ` · ${g.email}` : ""} · guest since ${formatInTimeZone(new Date(g.created_at), tz, "MMM yyyy")}${member ? ` · ${member.tier_name} member until ${formatInTimeZone(new Date(member.ends_at!), tz, "d MMM yyyy")}` : ""}`}
+        actions={
+          s.role !== "stylist" ? (
+            <ButtonLink href={`/dashboard/bookings/new?phone=${g.phone}&name=${encodeURIComponent(g.name)}` as Route}>
+              <CalendarPlus aria-hidden /> Book again
+            </ButtonLink>
+          ) : null
+        }
       />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Visits" value={past.length} />
-        <Stat label="Spend" value={money(spend, s.salon.currency)} />
-        <Stat label="Favourite therapist" value={fav ? fav[0] : "—"} hint={fav ? `${fav[1]} visit${fav[1] === 1 ? "" : "s"}` : undefined} />
-        <Stat label="Next visit" value={upcoming[0] ? formatInTimeZone(new Date(upcoming[0].starts_at), tz, "d MMM") : "—"} hint={upcoming[0]?.service?.name} />
-      </div>
+      <section aria-label="Guest at a glance" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard icon={CalendarCheck} label="Visits" value={past.length} />
+        <StatCard icon={IndianRupee} label="Spend" value={money(spend, s.salon.currency)} />
+        <StatCard icon={Heart} label="Favourite therapist" value={fav ? fav[0] : "—"} hint={fav ? `${fav[1]} visit${fav[1] === 1 ? "" : "s"}` : undefined} />
+        <StatCard icon={CalendarClock} label="Next visit" value={upcoming[0] ? formatInTimeZone(new Date(upcoming[0].starts_at), tz, "d MMM") : "—"} hint={upcoming[0]?.service?.name} />
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-5">
-        <Card className="xl:col-span-3">
-          <h2 className="display-cut text-[1.375rem]">Visits</h2>
+        <Section className="xl:col-span-3" title="Visits">
           {bookings?.length ? (
-            <ul className="mt-3 divide-y divide-line">
+            <ul className="-my-3 divide-y">
               {bookings.map((b) => (
                 <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
                   <div className="min-w-0">
                     <p className="font-medium">{b.service?.name}</p>
-                    <p className="text-xs text-stone">
+                    <p className="text-xs text-muted-foreground">
                       {formatInTimeZone(new Date(b.starts_at), tz, "EEE d MMM yyyy, h:mm a")}
                       {b.staff?.name ? ` · ${b.staff.name}` : ""}
                       {s.salons.length > 1 ? ` · ${studio(b.salon_id)}` : ""}
                       {` · ref ${b.reference}`}
                     </p>
-                    {b.notes && <p className="mt-1 text-xs text-stone">“{b.notes}”</p>}
+                    {b.notes && <p className="mt-1 text-xs text-muted-foreground">“{b.notes}”</p>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="tabular-nums text-stone">{money(b.price, s.salon.currency)}</span>
-                    <Badge tone={b.status}>{b.status}</Badge>
-                    {b.source !== "staff" && <Badge tone={b.source}>{b.source}</Badge>}
+                    <span className="tabular text-muted-foreground">{money(b.price, s.salon.currency)}</span>
+                    <StatusBadge status={b.status} />
+                    {b.source !== "staff" && <StatusBadge status={b.source} />}
                   </div>
                 </li>
               ))}
             </ul>
           ) : (
-            <Empty>No bookings yet.</Empty>
+            <EmptyState icon={CalendarCheck} title="No bookings yet" />
           )}
-        </Card>
+        </Section>
 
         <div className="grid content-start gap-6 xl:col-span-2">
-          <Card>
-            <h2 className="display-cut text-[1.375rem]">Profile</h2>
-            <div className="mt-4">
-              <GuestForm g={{ id: g.id, name: g.name, email: g.email, tags: g.tags, preferences: g.preferences, notes: g.notes }} readOnly={s.role === "stylist"} />
-            </div>
-          </Card>
-          <Card>
-            <h2 className="display-cut text-[1.375rem]">Conversations</h2>
+          <Section title="Profile">
+            <GuestForm g={{ id: g.id, name: g.name, email: g.email, tags: g.tags, preferences: g.preferences, notes: g.notes }} readOnly={s.role === "stylist"} />
+          </Section>
+          <Section title="Conversations">
             {calls?.length ? (
-              <ul className="mt-3 divide-y divide-line text-sm">
+              <ul className="-my-2.5 divide-y text-sm">
                 {calls.map((c) => (
                   <li key={c.id} className="py-2.5">
                     <Link href={`/dashboard/inbox?id=${c.id}` as Route} className="flex items-center justify-between gap-3 hover:underline">
-                      <span>{c.channel === "phone" ? "Phone call" : "Website chat"} · {formatInTimeZone(new Date(c.created_at), tz, "d MMM, h:mm a")}</span>
-                      {c.outcome && <Badge tone={c.outcome}>{c.outcome}</Badge>}
+                      <span>
+                        {c.channel === "phone" ? "Phone call" : "Website chat"} · {formatInTimeZone(new Date(c.created_at), tz, "d MMM, h:mm a")}
+                      </span>
+                      {c.outcome && <StatusBadge status={c.outcome} />}
                     </Link>
-                    {c.summary && <p className="mt-1 line-clamp-2 text-xs text-stone">{c.summary}</p>}
+                    {c.summary && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{c.summary}</p>}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-2 text-sm text-stone">No calls or chats linked to this guest.</p>
+              <p className="text-sm text-muted-foreground">No calls or chats linked to this guest.</p>
             )}
-          </Card>
+          </Section>
         </div>
       </div>
     </div>

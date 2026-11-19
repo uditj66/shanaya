@@ -5,7 +5,8 @@ import type { UIMessage } from "ai";
 import { formatInTimeZone } from "date-fns-tz";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireArea } from "@/lib/session";
-import { Badge, Card, Empty, PageHeader } from "@/components/dashboard-ui";
+import { ArrowLeft, Inbox as InboxIcon, MessagesSquare, UserRound } from "lucide-react";
+import { ButtonLink, Card, EmptyState, PageHeader, StatusBadge, cn, SegmentedNav } from "@/components/admin/kit";
 import { TeamReply } from "./team-reply";
 
 type SP = { id?: string; channel?: string };
@@ -69,98 +70,129 @@ async function Inbox({ searchParams }: { searchParams: Promise<SP> }) {
     c.customer?.name ?? (c.customer_phone ? `+${c.customer_phone}` : c.channel === "web" ? "Website visitor" : "Unknown caller");
 
   return (
-    <div>
-      <PageHeader eyebrow={s.isAll ? `All ${s.scopeIds.length} studios` : (s.salon.area ?? "")} title="Inbox" subtitle={`Every phone call and website chat ${agentName} handled. Take over a live chat to answer yourself.`} />
-      <div className="mb-4 flex flex-wrap gap-1.5 text-sm" role="group" aria-label="Filter">
-        {FILTERS.map(([k, label]) => (
-          <Link key={k} href={href(k ? { channel: k } : {})} aria-current={filter === k ? "true" : undefined} className={`rounded-full px-3 py-1.5 ${filter === k ? "bg-charcoal text-ivory" : "text-stone ring-1 ring-line hover:text-charcoal"}`}>
-            {label}
-          </Link>
-        ))}
-      </div>
+    <div className="grid gap-6">
+      <PageHeader
+        eyebrow={s.isAll ? `All ${s.scopeIds.length} studios` : (s.salon.area ?? "")}
+        title="Inbox"
+        description={`Every phone call and website chat ${agentName} handled. Take over a live chat to answer yourself.`}
+      />
+      <div>
+        <SegmentedNav label="Filter" className="mb-4" items={FILTERS.map(([k, label]) => ({ href: href(k ? { channel: k } : {}), label, active: filter === k }))} />
 
-      <div className="grid gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]">
-        <Card className={`max-h-[75dvh] overflow-y-auto p-0 ${sp.id ? "hidden lg:block" : ""}`}>
-          {list?.length ? (
-            <ul className="divide-y divide-line">
-              {list.map((c) => {
-                const st = (c.agent_state ?? {}) as State;
-                const lastGuest = [...(st.ui ?? [])].reverse().find((m) => m.role === "user");
-                return (
-                  <li key={c.id}>
-                    <Link href={href({ id: c.id })} aria-current={c.id === selectedId ? "true" : undefined} className={`block px-4 py-3 text-sm hover:bg-linen/50 ${c.id === selectedId ? "bg-linen/70" : ""}`}>
-                      <span className="flex items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate font-medium">{who(c)}</span>
-                        <span className="shrink-0 text-xs text-stone">{formatInTimeZone(new Date(c.created_at), tz, "d MMM, h:mm a")}</span>
-                      </span>
-                      <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <Badge tone={c.channel}>{c.channel === "web" ? "chat" : "phone"}</Badge>
-                        {st.takeover && <Badge tone="confirmed">team live</Badge>}
-                        {c.outcome && <Badge tone={c.outcome}>{c.outcome}</Badge>}
-                        {s.isAll && <span className="text-xs text-stone">{studio(c.salon_id)}</span>}
-                      </span>
-                      {(c.summary || lastGuest) && <span className="mt-1 line-clamp-2 block text-xs text-stone">{c.summary ?? textOf(lastGuest!)}</span>}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <Empty>No conversations yet. They appear here as soon as a guest calls or chats.</Empty>
-          )}
-        </Card>
+        <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
+          <Card className={cn("max-h-[75dvh] gap-0 overflow-y-auto py-0", sp.id && "hidden lg:flex")}>
+            {list?.length ? (
+              <ul className="divide-y">
+                {list.map((c) => {
+                  const st = (c.agent_state ?? {}) as State;
+                  const lastGuest = [...(st.ui ?? [])].reverse().find((m) => m.role === "user");
+                  return (
+                    <li key={c.id}>
+                      <Link
+                        href={href({ id: c.id })}
+                        aria-current={c.id === selectedId ? "true" : undefined}
+                        className={cn("block px-4 py-3 text-sm transition-colors hover:bg-muted/60", c.id === selectedId && "bg-muted")}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate font-medium">{who(c)}</span>
+                          <span className="tabular shrink-0 text-xs text-muted-foreground">{formatInTimeZone(new Date(c.created_at), tz, "d MMM, h:mm a")}</span>
+                        </span>
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <StatusBadge status={c.channel}>{c.channel === "web" ? "chat" : "phone"}</StatusBadge>
+                          {st.takeover && <StatusBadge tone="success">team live</StatusBadge>}
+                          {c.outcome && <StatusBadge status={c.outcome} />}
+                          {s.isAll && <span className="text-xs text-muted-foreground">{studio(c.salon_id)}</span>}
+                        </span>
+                        {(c.summary || lastGuest) && <span className="mt-1 line-clamp-2 block text-xs text-muted-foreground">{c.summary ?? textOf(lastGuest!)}</span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <EmptyState icon={InboxIcon} title="No conversations yet" description="They appear here as soon as a guest calls or chats." />
+            )}
+          </Card>
 
-        <Card className={`flex min-h-[60dvh] flex-col p-0 ${sp.id ? "" : "hidden lg:flex"}`}>
-          {!sel ? (
-            <Empty>Pick a conversation.</Empty>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
-                <Link href={href({})} className="text-sm text-stone hover:text-charcoal lg:hidden">← Inbox</Link>
-                <div className="min-w-0 flex-1">
-                  <h2 className="display-cut truncate text-[1.375rem]">{who(sel)}</h2>
-                  <p className="text-xs text-stone">
-                    {sel.channel === "web" ? "Website chat" : "Phone call"} · {formatInTimeZone(new Date(sel.created_at), tz, "EEE d MMM, h:mm a")}
-                    {sel.duration_seconds ? ` · ${Math.floor(sel.duration_seconds / 60)}m ${sel.duration_seconds % 60}s` : ""}
-                    {s.salons.length > 1 ? ` · ${studio(sel.salon_id)}` : ""}
-                  </p>
+          <Card className={cn("min-h-[60dvh] gap-0 py-0", !sp.id && "hidden lg:flex")}>
+            {!sel ? (
+              <EmptyState icon={MessagesSquare} title="Pick a conversation" className="my-auto" />
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-3 border-b px-5 py-4">
+                  <ButtonLink href={href({})} variant="ghost" size="sm" className="-ml-2 lg:hidden">
+                    <ArrowLeft aria-hidden /> Inbox
+                  </ButtonLink>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate text-base font-semibold">{who(sel)}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {sel.channel === "web" ? "Website chat" : "Phone call"} · {formatInTimeZone(new Date(sel.created_at), tz, "EEE d MMM, h:mm a")}
+                      {sel.duration_seconds ? ` · ${Math.floor(sel.duration_seconds / 60)}m ${sel.duration_seconds % 60}s` : ""}
+                      {s.salons.length > 1 ? ` · ${studio(sel.salon_id)}` : ""}
+                    </p>
+                  </div>
+                  {sel.customer && (
+                    <ButtonLink href={`/dashboard/guests/${sel.customer.id}` as Route} variant="outline" size="sm">
+                      <UserRound aria-hidden /> Guest profile
+                    </ButtonLink>
+                  )}
                 </div>
-                {sel.customer && (
-                  <Link href={`/dashboard/guests/${sel.customer.id}` as Route} className="text-sm text-brass-ink underline-offset-4 hover:underline">Guest profile</Link>
-                )}
-              </div>
 
-              <div className="flex-1 space-y-3 overflow-y-auto px-5 py-5" role="log" aria-label="Conversation">
-                {sel.summary && <p className="rounded-xl bg-linen/60 px-4 py-3 text-sm"><span className="font-medium">Summary: </span>{sel.summary}</p>}
-                {sel.recording_url && <audio controls preload="none" src={sel.recording_url} className="w-full" />}
-                {sel.channel === "web" && selState.ui?.length ? (
-                  selState.ui.map((m) => {
-                    const staff = (m.metadata as { staff?: string } | undefined)?.staff;
-                    const text = textOf(m);
-                    const tools = m.role === "assistant" && !staff ? m.parts.map((p) => (p.type.startsWith("tool-") && "output" in p ? toolLine(p.type, p.output) : null)).filter(Boolean) : [];
-                    return (
-                      <div key={m.id} className={m.role === "user" ? "flex justify-end" : ""}>
-                        <div className="max-w-[85%] space-y-1">
-                          {m.role === "assistant" && <p className="text-[0.6875rem] text-stone">{staff ? `${staff} · team` : agentName}</p>}
-                          {text && (
-                            <p className={`whitespace-pre-line rounded-2xl px-4 py-2.5 text-sm ${m.role === "user" ? "rounded-br-md bg-charcoal text-ivory" : staff ? "rounded-bl-md bg-blush/50" : "rounded-bl-md border border-line bg-white"}`}>{text}</p>
-                          )}
-                          {tools.map((t, i) => <p key={i} className="text-xs text-brass-ink">· {t}</p>)}
+                <div className="flex-1 space-y-3 overflow-y-auto px-5 py-5" role="log" aria-label="Conversation">
+                  {sel.summary && (
+                    <p className="rounded-lg bg-muted px-4 py-3 text-sm">
+                      <span className="font-medium">Summary: </span>
+                      {sel.summary}
+                    </p>
+                  )}
+                  {sel.recording_url && <audio controls preload="none" src={sel.recording_url} className="w-full" />}
+                  {sel.channel === "web" && selState.ui?.length ? (
+                    selState.ui.map((m) => {
+                      const staff = (m.metadata as { staff?: string } | undefined)?.staff;
+                      const text = textOf(m);
+                      const tools =
+                        m.role === "assistant" && !staff
+                          ? m.parts.map((p) => (p.type.startsWith("tool-") && "output" in p ? toolLine(p.type, p.output) : null)).filter(Boolean)
+                          : [];
+                      return (
+                        <div key={m.id} className={m.role === "user" ? "flex justify-end" : ""}>
+                          <div className="max-w-[85%] space-y-1">
+                            {m.role === "assistant" && <p className="text-[0.6875rem] text-muted-foreground">{staff ? `${staff} · team` : agentName}</p>}
+                            {text && (
+                              <p
+                                className={cn(
+                                  "rounded-xl px-4 py-2.5 text-sm whitespace-pre-line",
+                                  m.role === "user"
+                                    ? "rounded-br-sm bg-primary text-primary-foreground"
+                                    : staff
+                                      ? "rounded-bl-sm bg-primary/12"
+                                      : "rounded-bl-sm border bg-background",
+                                )}
+                              >
+                                {text}
+                              </p>
+                            )}
+                            {tools.map((t, i) => (
+                              <p key={i} className="text-xs text-primary">
+                                · {t}
+                              </p>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
-                ) : sel.transcript ? (
-                  <pre className="whitespace-pre-wrap rounded-xl bg-linen/40 p-4 font-sans text-sm leading-relaxed">{sel.transcript}</pre>
-                ) : (
-                  <Empty>No transcript for this conversation.</Empty>
-                )}
-              </div>
+                      );
+                    })
+                  ) : sel.transcript ? (
+                    <pre className="rounded-lg bg-muted p-4 font-sans text-sm leading-relaxed whitespace-pre-wrap">{sel.transcript}</pre>
+                  ) : (
+                    <EmptyState title="No transcript for this conversation" />
+                  )}
+                </div>
 
-              {sel.channel === "web" && <TeamReply callId={sel.id} takenBy={selState.takeover?.by ?? null} agentName={agentName} />}
-            </>
-          )}
-        </Card>
+                {sel.channel === "web" && <TeamReply callId={sel.id} takenBy={selState.takeover?.by ?? null} agentName={agentName} />}
+              </>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -1,9 +1,26 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { formatInTimeZone } from "date-fns-tz";
+import { BadgeCheck, CalendarClock, Gift, IndianRupee, Search, Sparkles, Users } from "lucide-react";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireArea } from "@/lib/session";
-import { Badge, Card, Empty, PageHeader, Stat, money } from "@/components/dashboard-ui";
+import {
+  Button,
+  EmptyState,
+  FilterBar,
+  Input,
+  PageHeader,
+  StatCard,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCard,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  money,
+} from "@/components/admin/kit";
 import { UsageDots } from "@/components/usage-dots";
 import type { Route } from "next";
 import { benefitBookings, isPast, periodKey, periodUsage, savings, upcomingIncluded, type Tier } from "@/lib/dashboard/member-benefits";
@@ -55,67 +72,80 @@ async function Members({ searchParams }: { searchParams: Promise<{ q?: string }>
 
   return (
     <div className="grid gap-6">
-      <PageHeader eyebrow="Brand-wide" title="Members" subtitle="Guests with a membership bought online, and what each has used of their benefits. Open a member for the full record." />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
-        <Stat label="Active members" value={active.length} />
-        <Stat label="Active membership value" value={money(value, s.salon.currency)} />
-        <Stat label="Included treatments used" value={redeemedThisMonth} hint="This month, all studios" />
-        <Stat label="Included treatments booked" value={bookedAhead} hint="Upcoming" />
-        <Stat label="Member benefits given" value={money(givenThisMonth, s.salon.currency)} hint="This month, redeemed visits" />
+      <PageHeader eyebrow="Brand-wide" title="Members" description="Guests with a membership bought online, and what each has used of their benefits. Open a member for the full record." />
+      <section aria-label="Members at a glance" className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
+        <StatCard icon={BadgeCheck} label="Active members" value={active.length} />
+        <StatCard icon={IndianRupee} label="Active membership value" value={money(value, s.salon.currency)} />
+        <StatCard icon={Sparkles} label="Included treatments used" value={redeemedThisMonth} hint="This month, all studios" />
+        <StatCard icon={CalendarClock} label="Included treatments booked" value={bookedAhead} hint="Upcoming" />
+        <StatCard icon={Gift} label="Member benefits given" value={money(givenThisMonth, s.salon.currency)} hint="This month, redeemed visits" />
+      </section>
+      <div>
+        <FilterBar role="search">
+          <label htmlFor="q" className="sr-only">Search members</label>
+          <Input id="q" name="q" defaultValue={q} placeholder="Search by name or mobile number" className="max-w-sm" />
+          <Button type="submit">
+            <Search aria-hidden /> Search
+          </Button>
+        </FilterBar>
+        <TableCard>
+          {rows.length ? (
+            <Table className="min-w-[860px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4">Member</TableHead>
+                  <TableHead>Membership</TableHead>
+                  <TableHead>Included this period</TableHead>
+                  <TableHead>Benefits given</TableHead>
+                  <TableHead>Valid</TableHead>
+                  <TableHead className="pr-4">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((m) => (
+                  <TableRow key={m.id} className="align-top">
+                    <TableCell className="pl-4 align-top">
+                      <Link href={`/dashboard/members/${m.id}` as Route} className="font-medium underline-offset-4 hover:underline">{m.name}</Link>
+                      <p className="tabular text-xs text-muted-foreground">+{m.phone}{m.email ? ` · ${m.email}` : ""}</p>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      {m.tier_name}
+                      <p className="text-xs text-muted-foreground">{money(m.price, s.salon.currency)} a {m.period}{m.salon?.area ? ` · home: ${m.salon.area}` : ""}</p>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      {m.state !== "active" || !m.tier || m.tier.included_per_period <= 0 ? <span className="text-muted-foreground">—</span> : m.current ? (
+                        <>
+                          <UsageDots total={m.current.allowance} used={m.current.redeemed + m.current.noShow} booked={m.current.booked} />
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {m.current.left > 0 ? `${m.current.left} of ${m.current.allowance} left this ${PERIOD_NOUN[m.tier.included_period]}` : `All used this ${PERIOD_NOUN[m.tier.included_period]}`}
+                            {m.current.booked > 0 ? ` · ${m.current.booked} booked` : ""}
+                          </p>
+                        </>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="tabular align-top">
+                      {money(m.saved.includedValue + m.saved.discountValue, s.salon.currency)}
+                      <p className="text-xs text-muted-foreground">{m.saved.visits} redeemed visit{m.saved.visits === 1 ? "" : "s"}</p>
+                    </TableCell>
+                    <TableCell className="align-top text-muted-foreground">
+                      {m.starts_at && m.ends_at ? `${formatInTimeZone(new Date(m.starts_at), tz, "d MMM yyyy")} – ${formatInTimeZone(new Date(m.ends_at), tz, "d MMM yyyy")}` : "—"}
+                    </TableCell>
+                    <TableCell className="pr-4 align-top">
+                      <StatusBadge status={m.state} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <EmptyState
+              icon={Users}
+              title={q ? "No members match that search" : "No members yet"}
+              description={q ? "Try a different name or mobile number." : "Memberships bought on the website appear here."}
+            />
+          )}
+        </TableCard>
       </div>
-      <form role="search" className="flex flex-wrap gap-3">
-        <label htmlFor="q" className="sr-only">Search members</label>
-        <input id="q" name="q" defaultValue={q} placeholder="Search by name or mobile number" className="field max-w-sm" />
-        <button className="min-h-10 rounded-full bg-charcoal px-4 text-sm text-ivory">Search</button>
-      </form>
-      <Card className="overflow-x-auto p-0">
-        {rows.length ? (
-          <table className="w-full min-w-[860px] text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-[0.75rem] text-stone">
-                <th className="px-5 py-3 font-medium">Member</th>
-                <th className="px-3 py-3 font-medium">Membership</th>
-                <th className="px-3 py-3 font-medium">Included this period</th>
-                <th className="px-3 py-3 font-medium">Benefits given</th>
-                <th className="px-3 py-3 font-medium">Valid</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {rows.map((m) => (
-                <tr key={m.id} className="align-top hover:bg-cream/50">
-                  <td className="px-5 py-3">
-                    <Link href={`/dashboard/members/${m.id}` as Route} className="font-medium underline-offset-4 hover:underline">{m.name}</Link>
-                    <p className="text-xs text-stone tabular-nums">+{m.phone}{m.email ? ` · ${m.email}` : ""}</p>
-                  </td>
-                  <td className="px-3 py-3">{m.tier_name}<p className="text-xs text-stone">{money(m.price, s.salon.currency)} a {m.period}{m.salon?.area ? ` · home: ${m.salon.area}` : ""}</p></td>
-                  <td className="px-3 py-3">
-                    {m.state !== "active" || !m.tier || m.tier.included_per_period <= 0 ? <span className="text-stone">—</span> : m.current ? (
-                      <>
-                        <UsageDots total={m.current.allowance} used={m.current.redeemed + m.current.noShow} booked={m.current.booked} />
-                        <p className="mt-1 text-xs text-stone">
-                          {m.current.left > 0 ? `${m.current.left} of ${m.current.allowance} left this ${PERIOD_NOUN[m.tier.included_period]}` : `All used this ${PERIOD_NOUN[m.tier.included_period]}`}
-                          {m.current.booked > 0 ? ` · ${m.current.booked} booked` : ""}
-                        </p>
-                      </>
-                    ) : <span className="text-stone">—</span>}
-                  </td>
-                  <td className="px-3 py-3 tabular-nums">
-                    {money(m.saved.includedValue + m.saved.discountValue, s.salon.currency)}
-                    <p className="text-xs text-stone">{m.saved.visits} redeemed visit{m.saved.visits === 1 ? "" : "s"}</p>
-                  </td>
-                  <td className="px-3 py-3 text-stone">
-                    {m.starts_at && m.ends_at ? `${formatInTimeZone(new Date(m.starts_at), tz, "d MMM yyyy")} – ${formatInTimeZone(new Date(m.ends_at), tz, "d MMM yyyy")}` : "—"}
-                  </td>
-                  <td className="px-5 py-3"><Badge tone={m.state === "active" ? "confirmed" : m.state === "cancelled" ? "cancelled" : "done"}>{m.state}</Badge></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <Empty>{q ? "No members match that search." : "No members yet. Memberships bought on the website appear here."}</Empty>
-        )}
-      </Card>
     </div>
   );
 }

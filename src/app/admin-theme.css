@@ -1,0 +1,147 @@
+/* ═══════════════════════════════════════════════════════════════
+   Admin theme (team dashboard, login, privacy: everything under the
+   (platform) route group, whose <html> carries the `admin` class).
+   Based on the tweakcn "Supabase" theme, with Lumière brass as the
+   accent instead of Supabase green. The brand websites never get the
+   `admin` class, so none of these variables exist there.
+   Dark mode: `dark` class on <html>, set by the inline script in
+   (platform)/layout.tsx and the theme toggle (components/admin/theme.tsx).
+   ═══════════════════════════════════════════════════════════════ */
+
+@custom-variant dark (&:is(.dark *));
+
+.admin {
+  color-scheme: light;
+  --background: oklch(0.9911 0 0);
+  --foreground: oklch(0.2046 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2046 0 0);
+  --popover: oklch(0.9911 0 0);
+  --popover-foreground: oklch(0.2046 0 0);
+  /* Brass, darkened to #8a6a3a so white text on it passes AA (5:1) */
+  --primary: oklch(0.5456 0.0768 76.1);
+  --primary-foreground: oklch(0.9911 0 0);
+  --secondary: oklch(0.9702 0 0);
+  --secondary-foreground: oklch(0.2046 0 0);
+  --muted: oklch(0.9612 0 0);
+  /* Mid grey for secondary text (AA on white) so hierarchy stays clear */
+  --muted-foreground: oklch(0.5278 0 0);
+  --accent: oklch(0.9612 0 0);
+  --accent-foreground: oklch(0.2435 0 0);
+  --destructive: oklch(0.5523 0.1927 32.7272);
+  --destructive-foreground: oklch(0.9934 0.0032 17.2118);
+  --success: oklch(0.5276 0.1203 152.5);
+  --warning: oklch(0.6450 0.1350 70);
+  --border: oklch(0.9037 0 0);
+  --input: oklch(0.9037 0 0);
+  --ring: oklch(0.6011 0.0804 76.38);
+  --chart-1: oklch(0.6011 0.0804 76.38);
+  --chart-2: oklch(0.6231 0.188 259.8145);
+  --chart-3: oklch(0.6959 0.1491 162.4796);
+  --chart-4: oklch(0.6056 0.2189 292.7172);
+  --chart-5: oklch(0.6450 0.1650 10);
+  --sidebar: oklch(0.9821 0 0);
+  --sidebar-foreground: oklch(0.4386 0 0);
+  --sidebar-primary: oklch(0.5456 0.0768 76.1);
+  --sidebar-primary-foreground: oklch(0.9911 0 0);
+  --sidebar-accent: oklch(0.9461 0 0);
+  --sidebar-accent-foreground: oklch(0.2046 0 0);
+  --sidebar-border: oklch(0.9037 0 0);
+  --sidebar-ring: oklch(0.6011 0.0804 76.38);
+  --radius: 0.5rem;
+}
+
+.admin.dark {
+  color-scheme: dark;
+  --background: oklch(0.1822 0 0);
+  --foreground: oklch(0.9288 0.0126 255.5078);
+  --card: oklch(0.2046 0 0);
+  --card-foreground: oklch(0.9288 0.0126 255.5078);
+  --popover: oklch(0.2603 0 0);
+  --popover-foreground: oklch(0.9288 0.0126 255.5078);
+  /* Light brass (#c9a66b) with near-black text: 7.4:1 */
+  --primary: oklch(0.7434 0.087 79.86);
+  --primary-foreground: oklch(0.1822 0 0);
+  --secondary: oklch(0.2603 0 0);
+  --secondary-foreground: oklch(0.9851 0 0);
+  --muted: oklch(0.2393 0 0);
+  --muted-foreground: oklch(0.7122 0 0);
+  --accent: oklch(0.3132 0 0);
+  --accent-foreground: oklch(0.9851 0 0);
+  /* Lighter than the theme's so red text stays readable on dark */
+  --destructive: oklch(0.6368 0.2078 25.33);
+  --destructive-foreground: oklch(0.9368 0.0045 34.3092);
+  --success: oklch(0.7227 0.1502 152.5);
+  --warning: oklch(0.8369 0.1644 84.4286);
+  --border: oklch(0.2809 0 0);
+  --input: oklch(0.3132 0 0);
+  --ring: oklch(0.7434 0.087 79.86);
+  --chart-1: oklch(0.7434 0.087 79.86);
+  --chart-2: oklch(0.7137 0.1434 254.624);
+  --chart-3: oklch(0.7845 0.1325 181.912);
+  --chart-4: oklch(0.709 0.1592 293.5412);
+  --chart-5: oklch(0.7200 0.1500 10);
+  --sidebar: oklch(0.1822 0 0);
+  --sidebar-foreground: oklch(0.7122 0 0);
+  --sidebar-primary: oklch(0.7434 0.087 79.86);
+  --sidebar-primary-foreground: oklch(0.1822 0 0);
+  --sidebar-accent: oklch(0.2603 0 0);
+  --sidebar-accent-foreground: oklch(0.9851 0 0);
+  --sidebar-border: oklch(0.2809 0 0);
+  --sidebar-ring: oklch(0.7434 0.087 79.86);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  .admin * {
+    @apply border-border outline-ring/50;
+  }
+  .admin body {
+    @apply bg-background text-foreground;
+    letter-spacing: 0.01em;
+  }
+  .admin ::selection {
+    background: color-mix(in oklab, var(--primary) 25%, transparent);
+    color: inherit;
+  }
+}
+
+/* Money and counts line up in tables and stat cards */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
