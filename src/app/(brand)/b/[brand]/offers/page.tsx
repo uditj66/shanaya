@@ -6,7 +6,9 @@ import { JsonLd, PageIntro, SampleBadge } from "@/components/brand/sections";
 import { PageTransition } from "@/components/motion/page-transition";
 import { Reveal } from "@/components/motion/reveal";
 import { Button } from "@/components/ui/button";
-import { getBrand, getMemberships, getMenu, getOffers } from "@/lib/brand/data";
+import { JoinMembership } from "@/components/brand/join-membership";
+import { getBrand, getMemberships, getMenu, getOffers, getStudios } from "@/lib/brand/data";
+import { isTestMode, razorpayConfigured } from "@/lib/payments/razorpay";
 import { brandHref } from "@/lib/brand/href";
 import { breadcrumbLd } from "@/lib/brand/seo";
 import { cn, formatPrice } from "@/lib/utils";
@@ -20,7 +22,9 @@ export const metadata: Metadata = {
 // ISR (hours): offers change more often than the rest of the site.
 export default async function OffersPage() {
   const slug = await brandParam();
-  const [brand, offers, memberships, menu] = await Promise.all([getBrand(slug), getOffers(slug), getMemberships(slug), getMenu(slug)]);
+  const [brand, offers, memberships, menu, studios] = await Promise.all([getBrand(slug), getOffers(slug), getMemberships(slug), getMenu(slug), getStudios(slug)]);
+  const online = razorpayConfigured();
+  const studioOptions = studios.map((s) => ({ value: s.slug, label: `${s.area}, ${s.city}` }));
   if (!brand) return null;
   const treatment = (code: string | null) => menu.find((m) => m.code === code);
 
@@ -83,9 +87,13 @@ export default async function OffersPage() {
                       </li>
                     ))}
                   </ul>
-                  <Button asChild variant={m.highlight ? "primary" : "quiet"} className="mt-10 self-start">
-                    <Link href={brandHref("/contact")}>Ask about {m.name}</Link>
-                  </Button>
+                  {online && brand ? (
+                    <JoinMembership brand={slug} brandName={brand.name} tier={{ id: m.id, name: m.name, price: m.price, period: m.period }} studios={studioOptions} primary={m.highlight} testMode={isTestMode()} />
+                  ) : (
+                    <Button asChild variant={m.highlight ? "primary" : "quiet"} className="mt-10 self-start">
+                      <Link href={brandHref("/contact")}>Ask about {m.name}</Link>
+                    </Button>
+                  )}
                 </Reveal>
               ))}
             </ul>

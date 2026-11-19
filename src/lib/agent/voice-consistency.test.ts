@@ -1,9 +1,8 @@
 // Guarantees Shanaya sounds and behaves the same on a phone call and a website voice call.
 import { afterEach, describe, expect, it } from "vitest";
-import { buildVapiAssistant, escapeLiquid, savedAssistantDefinition, SERVER_MESSAGES, vapiCallConfig } from "./vapi";
+import { escapeLiquid, savedAssistantDefinition, SERVER_MESSAGES, vapiCallConfig } from "./vapi";
 import { signSalon, verifySalon } from "./call-signature";
-import { buildKnowledge, greeting, personaPrompt } from "./prompt";
-import { buildVoice, VOICE_PRESETS } from "./voices";
+import { buildKnowledge, chatGreeting, personaPrompt } from "./prompt";
 import type { SalonContext } from "./context";
 
 const salon = {
@@ -11,9 +10,7 @@ const salon = {
   phone: "+91 22 4000 0000", address: "Linking Road, Bandra West, Mumbai 400050", website: null,
   business_hours: { "0": [["10:00", "20:00"]], "1": [["10:00", "21:00"]], "2": [["10:00", "21:00"]], "3": [["10:00", "21:00"]], "4": [["10:00", "21:00"]], "5": [["10:00", "21:00"]], "6": [["10:00", "21:00"]] },
   slot_interval_minutes: 15, min_notice_minutes: 60, max_days_ahead: 90,
-  agent_name: "Shanaya", agent_greeting: null, agent_instructions: "", policies: "",
-  llm_model: "gpt-5.4-mini", phone_llm_model: "gpt-4o",
-  voice_provider: "vapi", voice_id: "Naina", voice_model: null, voice_settings: { speed: 1 },
+  agent_name: "Shanaya", agent_instructions: "", policies: "",
   vapi_phone_number_id: null, transfer_phone: "+919800000000", widget_enabled: true, created_at: "",
   brand_name: "Lumière Facial Studio & Spa", city: "Mumbai", area: "Bandra West", branch_code: "MUM-BAN", is_placeholder: true, guest_profiles: [], daily_web_voice_cap: 100, daily_chat_cap: 500,
   brand_id: null, studio_slug: "bandra-west", latitude: null, longitude: null, hero_image: null, gallery: [], is_flagship: true, published: true,
@@ -74,30 +71,6 @@ describe("saved Vapi assistant (managed in the Vapi dashboard)", () => {
   });
 });
 
-describe("fallback transient assistant (no saved assistant)", () => {
-  const phone = buildVapiAssistant(ctx, "+919000012345", "phone");
-  const web = buildVapiAssistant(ctx, null, "web");
-
-  it("uses the identical voice, transcriber, greeting and turn-taking", () => {
-    for (const key of ["voice", "transcriber", "firstMessage", "startSpeakingPlan", "stopSpeakingPlan", "backgroundSound", "endCallMessage"] as const) {
-      expect(web[key], key).toEqual(phone[key]);
-    }
-  });
-
-  it("offers the same booking tools (transfer is phone-only)", () => {
-    const names = (a: typeof phone) => a.model.tools.filter((t) => t.type === "function").map((t) => (t.function as { name: string }).name);
-    expect(names(web)).toEqual(names(phone));
-  });
-
-  it("voice is female Indian-English; Vapi voices use Vapi's managed fallback", () => {
-    expect(phone.voice).toMatchObject({ provider: "vapi", voiceId: "Naina" });
-    expect(phone.voice.fallbackPlan).toBeUndefined();
-    const neerja = buildVoice({ voice_provider: "azure", voice_id: "en-IN-NeerjaNeural", voice_model: null, voice_settings: {} });
-    expect(neerja.fallbackPlan).toEqual({ voices: [{ provider: "vapi", voiceId: "Naina" }] });
-    expect(VOICE_PRESETS.every((p) => /Indian/i.test(p.label + p.description))).toBe(true);
-  });
-});
-
 describe("favourite therapist", () => {
   it("persona always asks for a preferred therapist and uses guest_history for 'same as last time'", () => {
     for (const mode of ["voice", "chat"] as const) {
@@ -122,10 +95,12 @@ describe("go-live safety", () => {
     expect(k).toContain("Juhu Tara Road, +91 22 2600 1111");
   });
 
-  it("greets with the recording notice on phone and website", () => {
-    process.env.VAPI_ASSISTANT_ID = "";
+  it("greets with the recording notice on calls", () => {
     expect(savedAssistantDefinition().firstMessage).toMatch(/may be recorded/i);
-    expect(buildVapiAssistant(ctx, null, "web").firstMessage).toMatch(/may be recorded/i);
+  });
+
+  it("refuses to start a call without the saved assistant", () => {
+    expect(() => vapiCallConfig(ctx, null, "web")).toThrow(/VAPI_ASSISTANT_ID/);
   });
 
   it("persona hands off to a person by transfer on the phone and respects recording objections", () => {
@@ -170,9 +145,8 @@ describe("audit fixes: branch signature", () => {
 });
 
 describe("audit fixes: chat vs voice", () => {
-  it("typed chat greeting has no recording notice; voice greeting does", () => {
-    expect(greeting(ctx, "chat")).not.toMatch(/recorded|calling/i);
-    expect(greeting(ctx, "voice")).toMatch(/may be recorded/i);
+  it("typed chat greeting has no recording notice", () => {
+    expect(chatGreeting(ctx)).not.toMatch(/recorded|calling/i);
   });
 
   it("chat persona has no phone-only instructions", () => {

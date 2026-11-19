@@ -2,7 +2,7 @@
 import "server-only";
 import { adminClient } from "./supabase/admin";
 
-export type EventKind = "tool_error" | "webhook_auth" | "call_error" | "cap_reached";
+export type EventKind = "tool_error" | "webhook_auth" | "call_error" | "cap_reached" | "payment_issue";
 
 export async function logEvent(salonId: string | null, kind: EventKind, detail: Record<string, unknown> = {}) {
   try {

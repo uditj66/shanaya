@@ -44,6 +44,8 @@ async function Workspace({ children }: { children: React.ReactNode }) {
         ...item("guests", { href: "/dashboard/guests", label: "Guests", icon: "Users" }),
         ...item("inbox", { href: "/dashboard/inbox", label: "Inbox", icon: "Inbox" }),
         ...item("leads", { href: "/dashboard/leads", label: "Leads", icon: "Sparkles", badge: newLeads ?? 0 }),
+        ...item("giftcards", { href: "/dashboard/gift-cards", label: "Gift cards", icon: "Gift" }),
+        ...item("members", { href: "/dashboard/members", label: "Members", icon: "Crown" }),
         ...item("inbox", { href: "/dashboard/callbacks", label: "Call-backs", icon: "PhoneCall", badge: openCallbacks ?? 0 }),
       ],
     },
@@ -60,6 +62,7 @@ async function Workspace({ children }: { children: React.ReactNode }) {
       items: [
         ...item("website", { href: "/dashboard/website", label: "Website", icon: "Globe" }),
         ...item("analytics", { href: "/dashboard/analytics", label: "Analytics", icon: "ChartLine" }),
+        ...item("payments", { href: "/dashboard/payments", label: "Payments", icon: "CreditCard" }),
         ...item("health", { href: "/dashboard/health", label: "Health", icon: "Activity", badge: health.recentProblems, tone: "danger" }),
       ],
     },

@@ -14,7 +14,7 @@ const BRAND_HOSTS: Record<string, string> = Object.fromEntries(
 if (process.env.NODE_ENV !== "production") BRAND_HOSTS["lumiere.localhost"] ??= "lumiere";
 
 // When set, the platform's own pages (e.g. shanaya-self.vercel.app) forward visitors to this single main address.
-// APIs (/api/…, incl. the Vapi phone webhook), the embeddable widget and /w/… keep working on every address.
+// APIs (/api/…, incl. the Vapi phone webhook) keep working on every address.
 const PRIMARY_SITE = (() => {
   try {
     return process.env.PRIMARY_SITE_URL ? new URL(process.env.PRIMARY_SITE_URL) : null;
@@ -24,7 +24,7 @@ const PRIMARY_SITE = (() => {
 })();
 
 /** Staff screens: same on every address. */
-const STAFF_PATHS = ["/dashboard", "/onboarding", "/login"];
+const STAFF_PATHS = ["/dashboard", "/login"];
 const isStaffPath = (p: string) => STAFF_PATHS.some((s) => p === s || p.startsWith(`${s}/`));
 
 export async function proxy(request: NextRequest) {
@@ -33,12 +33,12 @@ export async function proxy(request: NextRequest) {
   const brand = BRAND_HOSTS[host];
 
   // 1. Old platform address → the one main website (same path), so there's a single place for guests and staff.
-  if (!brand && PRIMARY_SITE && host !== PRIMARY_SITE.hostname && !pathname.startsWith("/w/")) {
+  if (!brand && PRIMARY_SITE && host !== PRIMARY_SITE.hostname) {
     const url = new URL(`${pathname}${request.nextUrl.search}`, PRIMARY_SITE);
     return NextResponse.redirect(url, 307);
   }
 
-  // 2. Staff screens (login, dashboard, onboarding) on any address, including the brand's own.
+  // 2. Staff screens (login, dashboard) on any address, including the brand's own.
   if (isStaffPath(pathname)) return staffGate(request, pathname);
 
   // 3. Brand address → the brand site, with clean URLs (/services → /b/lumiere/services).

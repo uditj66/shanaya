@@ -1,26 +1,22 @@
 import { Suspense } from "react";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireSalon } from "@/lib/session";
-import { appUrl } from "@/lib/agent/vapi";
 import { connectPhoneNumber, saveSettings } from "./actions";
-import { VoicePicker } from "./voice-picker";
 import { VapiManaged } from "./vapi-managed";
 import { Button, Card, Field, Input, PageHeader, Select, Textarea } from "@/components/dashboard-ui";
+import { chatModel } from "@/lib/agent/chat-model";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-async function Settings({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string; welcome?: string }> }) {
+async function Settings({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
   const { salon } = await requireSalon();
-  const vapiManaged = !!process.env.VAPI_ASSISTANT_ID;
+  const assistantId = process.env.VAPI_ASSISTANT_ID;
   const sp = await searchParams;
   const hours = salon.business_hours as Record<string, [string, string][]>;
-  const base = appUrl();
-  const embed = `<script src="${base}/widget.js" data-salon="${salon.slug}" async></script>`;
 
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader title="Settings" subtitle="Your studio details and how your AI receptionist behaves." />
-      {sp.welcome && <Card className="border-gold bg-gold/5 text-sm">Welcome! Next: set your hours here, then add services and therapists.</Card>}
       {sp.saved && <p className="text-sm text-sage">{sp.saved === "phone" ? "Phone number connected. Calls now reach your AI receptionist." : "Saved."}</p>}
       {sp.error && <p className="text-sm text-danger">{sp.error}</p>}
 
@@ -62,27 +58,17 @@ async function Settings({ searchParams }: { searchParams: Promise<{ saved?: stri
             <Field label="Assistant name" hint="Used on phone, website voice and chat"><Input name="agent_name" defaultValue={salon.agent_name} /></Field>
             <Field label="Transfer calls to (optional)" hint="This branch's front desk, e.g. +91 22 4000 0000. Used when a phone caller asks for a person"><Input name="transfer_phone" defaultValue={salon.transfer_phone ?? ""} /></Field>
           </div>
-          {!vapiManaged && <Field label="Greeting" hint="Leave blank for the default"><Input name="agent_greeting" defaultValue={salon.agent_greeting ?? ""} /></Field>}
           <Field label="Policies"><Textarea name="policies" defaultValue={salon.policies} /></Field>
           <Field label="Offers, FAQs and extra instructions"><Textarea name="agent_instructions" defaultValue={salon.agent_instructions} /></Field>
-          {vapiManaged ? (
-            <VapiManaged assistantId={process.env.VAPI_ASSISTANT_ID!} agentName={salon.agent_name} />
+          {assistantId ? (
+            <VapiManaged assistantId={assistantId} agentName={salon.agent_name} />
           ) : (
-          <VoicePicker
-            provider={salon.voice_provider}
-            voiceId={salon.voice_id}
-            model={salon.voice_model}
-            speed={Number((salon.voice_settings as { speed?: number } | null)?.speed ?? 1)}
-            agentName={salon.agent_name}
-          />
+            <p className="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
+              Shanaya&apos;s voice assistant isn&apos;t set up: VAPI_ASSISTANT_ID is missing from the server environment, so calls can&apos;t be answered.
+            </p>
           )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            {!vapiManaged && (
-              <Field label="Voice conversation model" hint="Phone and website voice calls (as listed in Vapi)"><Input name="phone_llm_model" defaultValue={salon.phone_llm_model} /></Field>
-            )}
-            <Field label="Typed chat model (OpenAI)" hint={vapiManaged ? "Voice model, greeting and voice are set in Vapi" : undefined}><Input name="llm_model" defaultValue={salon.llm_model} /></Field>
-          </div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="widget_enabled" defaultChecked={salon.widget_enabled} /> Website widget enabled</label>
+          <p className="text-xs text-stone">Chat model: {chatModel()}, the same for every studio (set by OPENAI_MODEL in the server environment).</p>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="widget_enabled" defaultChecked={salon.widget_enabled} /> &quot;Ask Shanaya&quot; chat on the Lumière website (for this studio&apos;s pages)</label>
         </Card>
         <Button>Save settings</Button>
       </form>
@@ -97,13 +83,6 @@ async function Settings({ searchParams }: { searchParams: Promise<{ saved?: stri
           <Input name="vapi_phone_number_id" defaultValue={salon.vapi_phone_number_id ?? ""} placeholder="Vapi phone number ID" className="max-w-sm" />
           <Button variant="outline">{salon.vapi_phone_number_id ? "Reconnect" : "Connect"}</Button>
         </form>
-      </Card>
-
-      <Card className="space-y-3">
-        <h2 className="font-serif text-xl font-semibold">Website widget</h2>
-        <p className="text-sm text-muted">Paste this before <code>&lt;/body&gt;</code> on your website. Guests can chat or talk to book.</p>
-        <pre className="overflow-x-auto rounded-lg bg-cream p-3 text-xs">{embed}</pre>
-        <a href={`/w/${salon.slug}`} target="_blank" className="text-sm text-gold-dark underline">Open your booking assistant →</a>
       </Card>
     </div>
   );

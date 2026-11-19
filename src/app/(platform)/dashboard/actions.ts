@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSalon } from "@/lib/session";
 import { BookingError, cancelBooking, createBooking } from "@/lib/booking-service";
+import { settleDepositOnCancel, settleDepositOnStatus } from "@/lib/payments/deposits";
 import { zonedToDate } from "@/lib/time";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -38,12 +39,14 @@ export async function setBookingStatus(form: FormData) {
   if (status === "cancelled") {
     try {
       await cancelBooking(supabase, { salonId: salon.id, reference: s(form, "reference"), reason: "Cancelled by staff" });
+      await settleDepositOnCancel(salon.id, s(form, "reference"));
     } catch (e) {
       // already cancelled or not found: refresh the list instead of showing an error page
       if (!(e instanceof BookingError)) throw e;
     }
   } else {
     await supabase.from("bookings").update({ status }).eq("salon_id", salon.id).eq("reference", s(form, "reference"));
+    await settleDepositOnStatus(salon.id, s(form, "reference"), status);
   }
   revalidatePath("/dashboard", "layout");
 }

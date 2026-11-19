@@ -29,6 +29,5 @@ export function MotionProvider({ children }: { children: React.ReactNode }) {
 // Motion tokens mirrored from globals.css for JS-driven animation.
 export const EASE_OUT_SOFT = [0.22, 1, 0.36, 1] as const;
 export const EASE_IN_OUT_FILM = [0.65, 0, 0.35, 1] as const;
-export const EASE_UI = [0.2, 0, 0, 1] as const;
 export const DURATION = { uiFast: 0.15, ui: 0.22, reveal: 0.9, revealSlow: 1.2, page: 0.7 } as const;
 export const STAGGER = 0.08;

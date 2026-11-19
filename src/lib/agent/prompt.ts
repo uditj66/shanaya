@@ -8,7 +8,7 @@ import { displayName, type SalonContext } from "./context";
 import { addDays, todayIn } from "../time";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const money = (amount: number, currency: string) =>
+export const money = (amount: number, currency: string) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
 
 type GuestProfile = { name: string; goals?: string[]; recommend?: string[]; note?: string };
@@ -18,13 +18,9 @@ export type ConversationMode = "phone" | "web-voice" | "chat";
 
 export const brandName = (ctx: SalonContext) => ctx.salon.brand_name || ctx.salon.name;
 
-/** Opening line. The recording notice is only for voice; typed chat gets a chat-appropriate welcome. */
-export function greeting(ctx: SalonContext, kind: "voice" | "chat" = "voice") {
-  if (kind === "chat") return `Hello, welcome to ${brandName(ctx)}. I'm ${ctx.salon.agent_name}, the studio's AI assistant. How may I pamper you today?`;
-  return (
-    ctx.salon.agent_greeting?.trim() ||
-    `Hello, thank you for calling ${brandName(ctx)}. This is ${ctx.salon.agent_name}. This call may be recorded for quality and booking purposes. How may I pamper you today?`
-  );
+/** Typed chat's opening line (calls open with the first message set on the saved Vapi assistant). */
+export function chatGreeting(ctx: SalonContext) {
+  return `Hello, welcome to ${brandName(ctx)}. I'm ${ctx.salon.agent_name}, the studio's AI assistant. How may I pamper you today?`;
 }
 
 /** Who Shanaya is and how she talks. Voice version is the starting point for the editable Vapi prompt. */
@@ -158,7 +154,13 @@ export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string |
     .map((g) => `- ${g.name}: goals ${g.goals?.join(", ") ?? "-"}. Suggest: ${g.recommend?.join(", ") ?? "-"}. ${g.note ?? ""}`.trim())
     .join("\n");
 
-  return `# Today (timezone ${tz}; now ${formatInTimeZone(now, tz, "HH:mm")})
+  return `# House rules (always)
+- The [codes] in this knowledge (FAC003, PKG002, branch ids) are for tools only. Never say or write a code to the guest, and never mention "codes", "the menu system", "the knowledge", "tools", "the site" or how you work inside. Guests only ever hear treatment names.
+- Only the treatments, packages and prices listed below exist. Quote a price exactly as listed for that treatment and never mix up two treatments' prices. Never invent a version that isn't listed (no "advanced", "premium" or "deluxe" variants). If she asks for something we don't offer, say warmly what we do offer that is closest, by name.
+- If you notice you said something wrong, correct it simply (for example: sorry, I misspoke, the HydraFacial is ₹3,999) and carry on. Never invent a reason to cover it.
+- Several treatments in one visit: you plan it. Check times so they follow one another at the same studio (and the same day if she wants), read the whole plan back once, and after her yes book each one. Never ask her to book them "one at a time" or to work out the order herself.
+
+# Today (timezone ${tz}; now ${formatInTimeZone(now, tz, "HH:mm")})
 ${calendar}
 These are the opening hours and the menu of the branch she reached. check_availability always uses the chosen branch's real hours, and tool results give the chosen branch's price.
 
@@ -171,6 +173,7 @@ ${directory}
 # Menu (use the [code] in tools)
 ${menu || "No services configured."}
 ${packageList ? `\n# Occasion packages (book single-visit ones by their [code])\n${packageList}\n` : ""}${profiles ? `\n# Guest profiles (how to recommend)\n${profiles}\n` : ""}
+${perksSection(ctx, opts.mode ?? "chat")}
 # Policies
 ${salon.policies || "None."}
 
@@ -179,6 +182,33 @@ ${salon.agent_instructions || "None."}
 
 # This conversation
 ${conversationNote(opts.mode ?? "chat", opts.callerPhone)}`;
+}
+
+/** Gift cards and memberships when booking: lives in the live knowledge so it reaches the saved Vapi prompt too. */
+function perksSection(ctx: SalonContext, mode: ConversationMode) {
+  const tiers = ctx.memberships ?? [];
+  if (!ctx.giftCards && !tiers.length) return "";
+  const per = { month: "a month", quarter: "a quarter", year: "a year" } as const;
+  const tierLines = tiers
+    .map((m) => {
+      const perks = [
+        m.included_per_period > 0 && m.included_categories.length ? `${m.included_per_period} ${m.included_categories.join(" or ")} treatment${m.included_per_period > 1 ? "s" : ""} included ${per[m.included_period]}` : "",
+        m.discount_pct > 0 ? `${m.discount_pct}% off other bookings` : "",
+        m.skip_deposit ? "no deposit" : "",
+      ].filter(Boolean).join(", ");
+      return `- ${m.name} (${money(Number(m.price), ctx.salon.currency)} a ${m.period}): at booking, ${perks || "no automatic benefits"}. Other benefits (applied at the studio): ${m.benefits.join("; ")}.`;
+    })
+    .join("\n");
+  const voice = mode !== "chat";
+  return `
+# Gift cards and memberships when booking
+- Before reading the booking back, ask once, lightly: "Will you be using a gift card or a ${brandName(ctx)} membership today?"
+${ctx.giftCards ? `- Gift card: take the code${voice ? ", read it back character by character" : ""}, call check_gift_card, tell her the balance, then pass it as gift_card_code to book_appointment. It pays the treatment price (after any member discount) up to the balance; anything over is paid at the studio. No deposit is needed. If she cancels with enough notice the amount goes back on the card.\n` : ""}${
+    tiers.length
+      ? `- Membership: there is no code. Benefits are applied automatically by book_appointment from the mobile number on her membership${voice ? " (on a phone call, the caller's number)" : ""}, so make sure you book with that number. Never promise a member price before the booking: tell her what book_appointment returns (payment_note). If she says she is a member but no member benefit comes back, say kindly that the studio will check her membership at the visit.\n- Tiers:\n${tierLines}\n`
+      : ""
+  }- After booking, always tell her what she pays at the studio, from payment_note.
+`;
 }
 
 /** Tells Shanaya which kind of conversation this is, so phone-only abilities aren't offered on the website. */
@@ -193,7 +223,7 @@ function conversationNote(mode: ConversationMode, callerPhone?: string | null) {
   return "Typed chat on the website. There is no caller ID: ask for her mobile number. Bookings and visit history are only shared with a booking reference plus mobile number.";
 }
 
-/** Full prompt for typed chat (and the voice fallback when no saved Vapi assistant is configured). */
+/** Full prompt for typed chat (calls use the saved Vapi assistant's prompt plus {{knowledge}}). */
 export function buildPrompt(ctx: SalonContext, opts: { mode: ConversationMode; callerPhone?: string | null; now?: Date }) {
   return `${personaPrompt(opts.mode === "chat" ? "chat" : "voice", ctx.salon.agent_name, brandName(ctx))}\n\n# KNOWLEDGE\n${buildKnowledge(ctx, opts)}`;
 }

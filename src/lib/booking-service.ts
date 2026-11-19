@@ -236,19 +236,3 @@ export async function cancelBooking(db: DB, input: { salonId: string; reference:
   if (error) throw error;
   return b;
 }
-
-export async function upcomingForPhone(db: DB, salonId: string, currency: string, rawPhone: string) {
-  const phone = normalizePhone(rawPhone, countryCodeFor(currency));
-  const { data: customer } = await db.from("customers").select("id, name").eq("salon_id", salonId).eq("phone", phone).maybeSingle();
-  if (!customer) return { customer: null, bookings: [] };
-  const { data } = await db
-    .from("bookings")
-    .select("reference, starts_at, status, staff:staff_id (name), service:service_id (name)")
-    .eq("salon_id", salonId)
-    .eq("customer_id", customer.id)
-    .eq("status", "confirmed")
-    .gte("starts_at", new Date().toISOString())
-    .order("starts_at")
-    .limit(5);
-  return { customer, bookings: data ?? [] };
-}

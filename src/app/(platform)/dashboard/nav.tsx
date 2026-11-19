@@ -4,11 +4,11 @@ import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import {
-  Activity, CalendarDays, ChartLine, Globe, Inbox, LayoutDashboard, ListChecks, Menu, PhoneCall, Settings, Sparkles, UserRound, Users, X,
+  Activity, CalendarDays, ChartLine, CreditCard, Crown, Gift, Globe, Inbox, LayoutDashboard, ListChecks, Menu, PhoneCall, Settings, Sparkles, UserRound, Users, X,
 } from "lucide-react";
 import { switchSalon } from "./switch-action";
 
-const ICONS = { LayoutDashboard, CalendarDays, ListChecks, Users, Inbox, PhoneCall, Globe, ChartLine, Sparkles, UserRound, Settings, Activity };
+const ICONS = { LayoutDashboard, CalendarDays, ListChecks, Users, Inbox, PhoneCall, Globe, ChartLine, Sparkles, UserRound, Settings, Activity, Gift, CreditCard, Crown };
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS; badge?: number; tone?: "accent" | "danger" };
 export type NavGroup = { label: string; items: NavItem[] };
 type StudioOption = { id: string; label: string; city: string };

@@ -23,7 +23,11 @@ function toolLine(type: string, output: unknown): string | null {
     case "tool-show_studios": return `Showed studios: ${((o.studios as { area: string }[]) ?? []).map((c) => c.area).join(", ")}`;
     case "tool-show_specialists": return `Showed specialists at ${String(o.studio ?? "the studio")}`;
     case "tool-check_availability": return `Checked times${o.date ? ` for ${String(o.date)}` : ""}`;
-    case "tool-book_appointment": return "success" in o ? `Booked · ref ${String(o.reference ?? "")}` : "Tried to book";
+    case "tool-book_appointment":
+      return "success" in o
+        ? `Booked · ref ${String(o.reference ?? "")}${o.member ? " · member benefit applied" : ""}${o.gift_card ? " · paid with gift card" : ""}`
+        : "Tried to book";
+    case "tool-check_gift_card": return "Checked a gift card";
     case "tool-reschedule_appointment": return "Rescheduled a booking";
     case "tool-cancel_appointment": return "Cancelled a booking";
     case "tool-request_callback": return "Requested a call-back";

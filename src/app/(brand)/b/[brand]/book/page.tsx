@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { brand as brandParam } from "next/root-params";
 import { BookingFlow } from "@/components/brand/booking-flow";
 import { Skeleton } from "@/components/ui/display";
-import { getMenu, getPackages, getStudios } from "@/lib/brand/data";
+import { getBrand, getMenu, getPackages, getStudios } from "@/lib/brand/data";
+import { razorpayConfigured } from "@/lib/payments/razorpay";
 
 export const metadata: Metadata = {
   title: "Book an appointment",
@@ -16,7 +17,9 @@ export const metadata: Metadata = {
 // live times come from /api/book/slots, and the booking is a Server Action.
 export default async function BookPage() {
   const slug = await brandParam();
-  const [menu, packages, studios] = await Promise.all([getMenu(slug), getPackages(slug), getStudios(slug)]);
+  const [brand, menu, packages, studios] = await Promise.all([getBrand(slug), getMenu(slug), getPackages(slug), getStudios(slug)]);
+  // Online bookings take a deposit when the brand sets one and payments are configured.
+  const deposit = brand && brand.deposit_amount > 0 && razorpayConfigured() ? { amount: brand.deposit_amount, refundHours: brand.deposit_refund_hours } : null;
   const treatments = [
     ...menu.map((t) => ({ code: t.code, name: t.name, group: t.categoryLabel, minutes: t.minutes, price: t.price, consultationFirst: t.consultationFirst, image: t.image })),
     ...packages.map((p) => ({ code: p.code, name: p.name, group: "Occasions", minutes: p.minutes, price: p.price, consultationFirst: p.consultationFirst, image: p.image })),
@@ -28,7 +31,7 @@ export default async function BookPage() {
       <h1 className="sr-only">Book an appointment</h1>
       <div className="mt-6">
         <Suspense fallback={<FlowSkeleton />}>
-          <BookingFlow brand={slug} treatments={treatments} studios={studios.map((s) => ({ slug: s.slug, city: s.city, area: s.area, lat: s.lat, lng: s.lng }))} />
+          <BookingFlow brand={slug} deposit={deposit} treatments={treatments} studios={studios.map((s) => ({ slug: s.slug, city: s.city, area: s.area, lat: s.lat, lng: s.lng }))} />
         </Suspense>
       </div>
     </div>

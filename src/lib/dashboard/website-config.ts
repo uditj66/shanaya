@@ -52,6 +52,9 @@ export const COLLECTIONS: Collection[] = [
       { name: "instagram", label: "Instagram handle", type: "text", max: 60 },
       { name: "faqs", label: "Frequently asked questions", type: "faqs", hint: "Shown on the site and used by the concierge to answer guests." },
       { name: "nudge_settings", label: "Concierge greetings", type: "nudge" },
+      { name: "deposit_amount", label: "Online booking deposit (₹)", type: "number", min: 0, max: 100000, required: true, hint: "Taken when guests book on the website or in the chat, and taken off the bill at the studio. 0 turns deposits off." },
+      { name: "deposit_refund_hours", label: "Refund the deposit if cancelled at least (hours before)", type: "number", min: 0, max: 168, required: true },
+      { name: "deposit_hold_minutes", label: "Hold an unpaid booking for (minutes)", type: "number", min: 5, max: 60, required: true },
     ],
   },
   {

@@ -41,7 +41,7 @@ export async function getBrand(slug: string) {
   cacheTag(tags.brand(slug));
   const { data } = await db()
     .from("brands")
-    .select("id, slug, name, full_name, tagline, story, agent_name, site_url, currency, locale, instagram, email, phone, faqs, nudge_settings")
+    .select("id, slug, name, full_name, tagline, story, agent_name, site_url, currency, locale, instagram, email, phone, faqs, nudge_settings, deposit_amount, deposit_refund_hours, deposit_hold_minutes")
     .eq("slug", slug)
     .maybeSingle();
   if (!data) return null;
@@ -207,8 +207,6 @@ export async function getPackages(slug: string) {
     image: images[p.code] ?? "rituals.products",
   }));
 }
-export type Package = Awaited<ReturnType<typeof getPackages>>[number];
-
 /* ───────────────────────────── Team ───────────────────────────── */
 export async function getTeam(slug: string) {
   "use cache";
