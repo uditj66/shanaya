@@ -7,9 +7,9 @@ export function UsageDots({ total, used, booked }: { total: number; used: number
         <span
           key={i}
           className={
-            d === "used" ? "size-2.5 rounded-full bg-charcoal"
-            : d === "booked" ? "size-2.5 rounded-full border-2 border-gold-dark"
-            : "size-2.5 rounded-full border border-line bg-white"
+            d === "used" ? "size-2.5 rounded-full bg-foreground"
+            : d === "booked" ? "size-2.5 rounded-full border-2 border-primary"
+            : "size-2.5 rounded-full border bg-card"
           }
         />
       ))}

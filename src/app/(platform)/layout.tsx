@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Bodoni_Moda, Hanken_Grotesk } from "next/font/google";
+import { Outfit } from "next/font/google";
+import { THEME_SCRIPT } from "@/components/admin/theme";
 import "../globals.css";
 
-// Same type system as the brand websites, so the dashboard feels like part of the studio.
-const display = Bodoni_Moda({ variable: "--font-display", subsets: ["latin"], axes: ["opsz"], display: "swap" });
-const ui = Hanken_Grotesk({ variable: "--font-ui", subsets: ["latin"], display: "swap" });
+// The team app (dashboard, login, privacy) uses the admin theme: html.admin in admin-theme.css.
+// Outfit is the UI font; light/dark is applied by THEME_SCRIPT before first paint.
+const ui = Outfit({ variable: "--font-ui", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
   title: "Lumière · Team dashboard",
@@ -12,12 +13,21 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export const viewport: Viewport = { colorScheme: "light", themeColor: "#fbf8f3" };
+export const viewport: Viewport = {
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fcfcfc" },
+    { media: "(prefers-color-scheme: dark)", color: "#121212" },
+  ],
+};
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${display.variable} ${ui.variable} h-full antialiased`}>
-      <body className="min-h-full bg-ivory font-sans text-charcoal">{children}</body>
+    <html lang="en" className={`admin ${ui.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className="min-h-full font-sans">{children}</body>
     </html>
   );
 }

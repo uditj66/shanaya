@@ -1,8 +1,25 @@
 import { Suspense } from "react";
 import { formatInTimeZone } from "date-fns-tz";
+import { Gift, IndianRupee, WalletCards } from "lucide-react";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireArea } from "@/lib/session";
-import { Badge, Card, Empty, PageHeader, Stat, money } from "@/components/dashboard-ui";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  Section,
+  StatCard,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  money,
+} from "@/components/admin/kit";
 import { RedeemDesk } from "./redeem-desk";
 
 async function GiftCards() {
@@ -25,45 +42,54 @@ async function GiftCards() {
 
   return (
     <div className="grid gap-6">
-      <PageHeader eyebrow="Brand-wide" title="Gift cards" subtitle="Look up a guest's gift card and take today's bill off the balance. Cards bought on the website appear here instantly." />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Stat label="Gift cards sold" value={list.length} hint="Latest 100" />
-        <Stat label="Value sold" value={money(sold, s.salon.currency)} />
-        <Stat label="Unused balance" value={money(outstanding, s.salon.currency)} hint="Still to be redeemed" />
-      </div>
-      <div className="grid gap-6 xl:grid-cols-5">
-        <Card className="xl:col-span-2">
-          <h2 className="display-cut mb-4 text-[1.375rem]">Redeem</h2>
+      <PageHeader eyebrow="Brand-wide" title="Gift cards" description="Look up a guest's gift card and take today's bill off the balance. Cards bought on the website appear here instantly." />
+      <section aria-label="Gift cards at a glance" className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <StatCard icon={Gift} label="Gift cards sold" value={list.length} hint="Latest 100" />
+        <StatCard icon={IndianRupee} label="Value sold" value={money(sold, s.salon.currency)} />
+        <StatCard icon={WalletCards} label="Unused balance" value={money(outstanding, s.salon.currency)} hint="Still to be redeemed" />
+      </section>
+      <div className="grid items-start gap-6 xl:grid-cols-5">
+        <Section className="xl:col-span-2" title="Redeem" description="Find a card by its code">
           <RedeemDesk canRedeem={!s.isAll} />
-        </Card>
-        <Card className="overflow-x-auto p-0 xl:col-span-3">
-          <h2 className="display-cut px-5 pt-5 text-[1.375rem]">Recent gift cards</h2>
+        </Section>
+        <Card className="gap-4 overflow-hidden pb-0 xl:col-span-3 [&_[data-slot=table-container]]:overflow-x-auto">
+          <CardHeader>
+            <CardTitle>Recent gift cards</CardTitle>
+          </CardHeader>
           {list.length ? (
-            <table className="mt-3 w-full min-w-[560px] text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-[0.75rem] text-stone">
-                  <th className="px-5 py-2.5 font-medium">Code</th>
-                  <th className="px-3 py-2.5 font-medium">For / from</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Balance</th>
-                  <th className="px-5 py-2.5 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
+            <Table className="min-w-[560px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Code</TableHead>
+                  <TableHead>For / from</TableHead>
+                  <TableHead className="text-right">Balance</TableHead>
+                  <TableHead className="pr-6">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {list.map((c) => (
-                  <tr key={c.id}>
-                    <td className="px-5 py-3 font-mono text-xs tracking-[0.1em]">
-                      {c.code}
-                      <p className="mt-0.5 font-sans tracking-normal text-stone">{formatInTimeZone(new Date(c.created_at), tz, "d MMM yyyy")}</p>
-                    </td>
-                    <td className="px-3 py-3">{c.recipient_name}<p className="text-xs text-stone">from {c.sender_name} · +{c.sender_phone}</p></td>
-                    <td className="px-3 py-3 text-right tabular-nums">{money(c.balance, s.salon.currency)}<p className="text-xs text-stone">of {money(c.amount, s.salon.currency)}</p></td>
-                    <td className="px-5 py-3"><Badge tone={c.status === "active" ? "confirmed" : "done"}>{c.status === "redeemed" ? "used" : c.status}</Badge></td>
-                  </tr>
+                  <TableRow key={c.id}>
+                    <TableCell className="pl-6 align-top">
+                      <span className="font-mono text-xs tracking-[0.1em]">{c.code}</span>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{formatInTimeZone(new Date(c.created_at), tz, "d MMM yyyy")}</p>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      {c.recipient_name}
+                      <p className="text-xs text-muted-foreground">from {c.sender_name} · +{c.sender_phone}</p>
+                    </TableCell>
+                    <TableCell className="tabular text-right align-top">
+                      {money(c.balance, s.salon.currency)}
+                      <p className="text-xs text-muted-foreground">of {money(c.amount, s.salon.currency)}</p>
+                    </TableCell>
+                    <TableCell className="pr-6 align-top">
+                      <StatusBadge status={c.status}>{c.status === "redeemed" ? "used" : c.status}</StatusBadge>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           ) : (
-            <Empty>No gift cards sold yet.</Empty>
+            <EmptyState icon={Gift} title="No gift cards sold yet" className="pb-12" />
           )}
         </Card>
       </div>

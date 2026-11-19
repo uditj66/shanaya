@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import type { Route } from "next";
 import { formatInTimeZone } from "date-fns-tz";
+import { Sparkles } from "lucide-react";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireArea } from "@/lib/session";
-import { Card, Empty, PageHeader, money } from "@/components/dashboard-ui";
+import { Card, EmptyState, PageHeader, money, SegmentedNav } from "@/components/admin/kit";
 import { Board, type Enquiry } from "./board";
 
 const KIND_LABEL: Record<string, string> = { contact: "Contact form", membership: "Membership enquiry", consultation: "Consultation request", chat: "From the chat" };
@@ -48,20 +48,18 @@ async function Leads({ searchParams }: { searchParams: Promise<{ tab?: string }>
   }
 
   return (
-    <div>
-      <PageHeader eyebrow="Brand-wide" title="Leads" subtitle="Enquiries from the website and the concierge chat, gift card requests and job applications." />
-      <nav className="mb-5 flex flex-wrap gap-1.5 text-sm" aria-label="Lead type">
-        {tabs.map(([k, label]) => (
-          <Link key={k} href={`/dashboard/leads?tab=${k}` as Route} aria-current={tab === k ? "page" : undefined} className={`rounded-full px-3.5 py-1.5 ${tab === k ? "bg-charcoal text-ivory" : "text-stone ring-1 ring-line hover:text-charcoal"}`}>
-            {label}
-          </Link>
-        ))}
-      </nav>
-      {!brandId ? (
-        <Card><Empty>Leads appear here once your studio has a brand website.</Empty></Card>
-      ) : (
-        <Board key={tab} table={table} items={items} />
-      )}
+    <div className="grid gap-6">
+      <PageHeader eyebrow="Brand-wide" title="Leads" description="Enquiries from the website and the concierge chat, gift card requests and job applications." />
+      <div>
+        <SegmentedNav label="Lead type" className="mb-4" items={tabs.map(([k, label]) => ({ href: `/dashboard/leads?tab=${k}` as Route, label, active: tab === k }))} />
+        {!brandId ? (
+          <Card>
+            <EmptyState icon={Sparkles} title="No leads yet" description="Leads appear here once your studio has a brand website." />
+          </Card>
+        ) : (
+          <Board key={tab} table={table} items={items} />
+        )}
+      </div>
     </div>
   );
 }

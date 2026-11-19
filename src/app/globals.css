@@ -1,7 +1,9 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "./admin-theme.css";
 
 /* ═══════════════════════════════════════════════════════════════
-   Design tokens. Light only: there is no dark theme anywhere.
+   Design tokens. Brand sites are light only; the team app (html.admin) has its own light/dark theme in admin-theme.css.
    Fonts come from the root layout of each site via two variables:
    --font-ui (sans) and --font-display (serif).
    Contrast: every text token passes WCAG AA (4.5:1) on ivory, linen, sand and blush.
@@ -19,17 +21,12 @@
   --color-charcoal: #2b2523;  /* all primary text */
   --color-stone: #655a53;     /* secondary text */
   --color-line: #e6dccd;      /* 1px dividers */
-  --color-success: #3f6a4a;
+  --color-success: var(--success, #3f6a4a); /* the admin theme sets --success */
   --color-danger: #9e4038;
 
-  /* Legacy dashboard aliases (kept until the Phase 4 dashboard redesign) */
-  --color-cream: #f3ede4;
-  --color-ink: #2b2523;
-  --color-muted: #655a53;
-  --color-gold: #7a5c2e;      /* legacy alias = brass-ink (AA for small text) */
-  --color-gold-dark: #5f4622;
+  /* Used by the concierge voice orb (brand site) */
+  --color-gold: #7a5c2e;
   --color-rose: #b4746b;
-  --color-sage: #6f8f74;
 
   --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-display), ui-serif, Georgia, serif;
@@ -72,7 +69,7 @@
   --radius-image: 2px;
 }
 
-:root {
+:root:not(.admin) {
   color-scheme: light;
 }
 
@@ -81,29 +78,21 @@ html {
   text-rendering: optimizeLegibility;
 }
 
-body {
+html:not(.admin) body {
   background: var(--color-ivory);
   color: var(--color-charcoal);
 }
 
-::selection {
+html:not(.admin) ::selection {
   background: var(--color-blush);
   color: var(--color-charcoal);
 }
 
 /* One consistent, visible focus ring (WCAG 2.2 focus appearance) */
-:focus-visible {
+html:not(.admin) :focus-visible {
   outline: 2px solid var(--color-brass);
   outline-offset: 3px;
   border-radius: 2px;
-}
-
-/* Native form controls in the same style everywhere (dashboard) */
-.field {
-  @apply w-full min-h-10 rounded-lg border border-line bg-white/85 px-3 py-2 text-sm text-charcoal outline-none transition placeholder:text-stone/70 hover:border-champagne focus:border-brass focus:bg-white focus:ring-4 focus:ring-brass/10;
-}
-.label {
-  @apply mb-1.5 block text-[0.75rem] font-medium tracking-[0.04em] text-stone;
 }
 
 /* Small caps label used above headings */

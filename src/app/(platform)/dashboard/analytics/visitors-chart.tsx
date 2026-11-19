@@ -1,46 +1,63 @@
 "use client";
-// Website visitors per day: one series, so no legend box (the card title names it); crosshair tooltip; sr-only table.
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+// Website visitors per day: one drawn series, so no legend (the card title names it); crosshair tooltip; sr-only table.
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/admin/ui/chart";
 import { CHANNEL_COLORS } from "../overview-charts";
 
 type Row = { label: string; visitors: number; views: number };
-const C = CHANNEL_COLORS.web;
 
-function TooltipBox({ active, payload, label }: { active?: boolean; payload?: { payload: Row }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  const r = payload[0].payload;
-  return (
-    <div className="rounded-xl border border-line bg-ivory px-3 py-2 text-xs shadow-lift">
-      <p className="font-medium text-charcoal">{label}</p>
-      <p className="mt-0.5 text-stone">Visitors <span className="tabular-nums text-charcoal">{r.visitors}</span> · Page views <span className="tabular-nums text-charcoal">{r.views}</span></p>
-    </div>
-  );
-}
+const config = {
+  visitors: { label: "Visitors", color: CHANNEL_COLORS.web },
+  views: { label: "Page views", color: "var(--chart-4)" },
+} satisfies ChartConfig;
 
 export function VisitorsChart({ data }: { data: Row[] }) {
   return (
     <figure>
-      <div className="h-56" aria-hidden="true">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
-            <defs>
-              <linearGradient id="visitors-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={C} stopOpacity={0.18} />
-                <stop offset="100%" stopColor={C} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} stroke="#ece4d8" />
-            <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: "#e6dccd" }} tick={{ fill: "#655a53", fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
-            <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: "#655a53", fontSize: 11 }} width={40} />
-            <Tooltip content={<TooltipBox />} cursor={{ stroke: "#655a53", strokeDasharray: "3 3" }} />
-            <Area type="monotone" dataKey="visitors" stroke={C} strokeWidth={2} fill="url(#visitors-fill)" activeDot={{ r: 4, stroke: "#fff", strokeWidth: 2 }} dot={false} animationDuration={700} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      <ChartContainer config={config} className="aspect-auto h-56 w-full" aria-hidden="true">
+        <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+          <defs>
+            <linearGradient id="visitors-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-visitors)" stopOpacity={0.25} />
+              <stop offset="100%" stopColor="var(--color-visitors)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval="preserveStartEnd" minTickGap={24} />
+          <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={40} />
+          <ChartTooltip cursor={{ strokeDasharray: "3 3" }} content={<ChartTooltipContent indicator="line" />} />
+          <Area
+            type="monotone"
+            dataKey="visitors"
+            stroke="var(--color-visitors)"
+            strokeWidth={2}
+            fill="url(#visitors-fill)"
+            activeDot={{ r: 4, stroke: "var(--background)", strokeWidth: 2 }}
+            dot={false}
+            animationDuration={700}
+          />
+          {/* Page views appear in the tooltip only: an invisible series keeps the chart to one line. */}
+          <Area type="monotone" dataKey="views" stroke="var(--color-views)" strokeOpacity={0} fill="none" activeDot={false} dot={false} isAnimationActive={false} />
+        </AreaChart>
+      </ChartContainer>
       <table className="sr-only">
         <caption>Website visitors per day</caption>
-        <thead><tr><th>Day</th><th>Visitors</th><th>Page views</th></tr></thead>
-        <tbody>{data.map((r) => <tr key={r.label}><td>{r.label}</td><td>{r.visitors}</td><td>{r.views}</td></tr>)}</tbody>
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Visitors</th>
+            <th>Page views</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((r) => (
+            <tr key={r.label}>
+              <td>{r.label}</td>
+              <td>{r.visitors}</td>
+              <td>{r.views}</td>
+            </tr>
+          ))}
+        </tbody>
       </table>
     </figure>
   );

@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import type { Route } from "next";
 import manifest from "../../../../../public/images/manifest.json";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireArea } from "@/lib/session";
-import { Card, Empty, PageHeader } from "@/components/dashboard-ui";
+import { Globe } from "lucide-react";
+import { Card, EmptyState, PageHeader, SegmentedNav } from "@/components/admin/kit";
 import { COLLECTIONS, type ImageOption, type Row } from "@/lib/dashboard/website-config";
 import { CollectionEditor } from "./editor";
 
@@ -18,9 +18,11 @@ async function Website({ searchParams }: { searchParams: Promise<{ tab?: string 
   const brandId = s.salon.brand_id;
   if (!brandId) {
     return (
-      <div>
+      <div className="grid gap-6">
         <PageHeader title="Website" />
-        <Card><Empty>This studio isn&apos;t part of a brand website yet.</Empty></Card>
+        <Card className="py-0">
+          <EmptyState icon={Globe} title="No brand website" description="This studio isn't part of a brand website yet." />
+        </Card>
       </div>
     );
   }
@@ -59,16 +61,12 @@ async function Website({ searchParams }: { searchParams: Promise<{ tab?: string 
   }
 
   return (
-    <div>
-      <PageHeader eyebrow="Brand-wide" title="Website" subtitle="Edit what guests see on the website. Changes go live within seconds of saving." />
-      <nav className="mb-6 flex gap-1.5 overflow-x-auto pb-1 text-sm" aria-label="Website sections">
-        {COLLECTIONS.map((x) => (
-          <Link key={x.key} href={`/dashboard/website?tab=${x.key}` as Route} aria-current={x.key === c.key ? "page" : undefined} className={`shrink-0 rounded-full px-3.5 py-1.5 ${x.key === c.key ? "bg-charcoal text-ivory" : "text-stone ring-1 ring-line hover:text-charcoal"}`}>
-            {x.label}
-          </Link>
-        ))}
-      </nav>
-      <p className="mb-5 max-w-2xl text-sm text-stone">{c.intro}</p>
+    <div className="grid gap-6">
+      <PageHeader eyebrow="Brand-wide" title="Website" description="Edit what guests see on the website. Changes go live within seconds of saving." />
+      <div className="-mt-2 grid gap-3">
+        <SegmentedNav label="Website sections" items={COLLECTIONS.map((x) => ({ href: `/dashboard/website?tab=${x.key}` as Route, label: x.label, active: x.key === c.key }))} />
+        <p className="max-w-2xl text-sm text-muted-foreground">{c.intro}</p>
+      </div>
       <CollectionEditor key={c.key} collectionKey={c.key} fields={c.fields} rows={rows} canAdd={c.canAdd} studios={studios} images={images} single={c.key === "brand"} />
     </div>
   );

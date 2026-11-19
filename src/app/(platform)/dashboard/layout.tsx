@@ -1,10 +1,17 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { TriangleAlert } from "lucide-react";
 import { can, requireSalon, type Area } from "@/lib/session";
 import { healthEvents } from "@/lib/health";
+import { AppSidebar, type NavGroup, type NavItem } from "@/components/admin/app-sidebar";
+import { SiteHeader } from "@/components/admin/site-header";
+import { SidebarInset, SidebarProvider } from "@/components/admin/ui/sidebar";
+import { Skeleton } from "@/components/admin/ui/skeleton";
+import { Toaster } from "@/components/admin/ui/sonner";
 import { signOut } from "../login/actions";
 import { LiveRefresh } from "./live-refresh";
-import { DashboardNav, type NavGroup, type NavItem } from "./nav";
+import { switchSalon } from "./switch-action";
 
 // Static shell (prerendered, paints instantly) + the signed-in workspace streamed in.
 // Everything below reads the auth cookie, so it lives inside <Suspense>.
@@ -20,12 +27,13 @@ async function Workspace({ children }: { children: React.ReactNode }) {
   const session = await requireSalon();
   const { salon, salons, user, supabase, role, isAll, scopeIds, canSeeAll } = session;
 
-  const [{ count: openCallbacks }, { count: newLeads }, health] = await Promise.all([
+  const [{ count: openCallbacks }, { count: newLeads }, health, jar] = await Promise.all([
     supabase.from("callbacks").select("*", { count: "exact", head: true }).in("salon_id", scopeIds).eq("status", "open"),
     salon.brand_id
       ? supabase.from("leads").select("*", { count: "exact", head: true }).eq("brand_id", salon.brand_id).eq("status", "new")
       : Promise.resolve({ count: 0 }),
     can(role, "health") ? healthEvents(supabase, salon.id, role) : Promise.resolve({ recentProblems: 0 }),
+    cookies(),
   ]);
 
   const item = (area: Area, i: NavItem): NavItem[] => (can(role, area) ? [i] : []);
@@ -69,8 +77,8 @@ async function Workspace({ children }: { children: React.ReactNode }) {
   ].filter((g) => g.items.length);
 
   return (
-    <div className="min-h-dvh lg:flex">
-      <DashboardNav
+    <SidebarProvider defaultOpen={jar.get("sidebar_state")?.value !== "false"}>
+      <AppSidebar
         brand={salon.brand_name?.split(" ")[0] ?? "Shanaya"}
         groups={groups}
         studios={salons.map((s) => ({ id: s.id, label: s.area ?? s.name, city: s.city ?? "Studios" }))}
@@ -78,36 +86,57 @@ async function Workspace({ children }: { children: React.ReactNode }) {
         allowAll={canSeeAll}
         user={user.email ?? ""}
         signOut={signOut}
+        switchSalon={switchSalon}
       />
-      <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8 xl:px-12">
-        {salon.is_placeholder && !isAll && can(role, "settings") && (
-          <Link href="/dashboard/settings" className="mb-6 block rounded-2xl border border-champagne bg-[#f6efe3] px-4 py-3 text-sm text-brass-ink hover:bg-[#f1e7d6]">
-            <strong className="font-medium">This studio still has sample contact details.</strong> Add its real address and phone in Settings (and real team names in Team &amp; hours) before guests call. Until then Shanaya won&apos;t read them out.
-          </Link>
-        )}
-        {children}
-      </main>
+      <SidebarInset className="min-w-0">
+        <SiteHeader groups={groups} />
+        <main className="mx-auto w-full max-w-[96rem] flex-1 px-4 py-6 md:px-6 lg:px-8">
+          {salon.is_placeholder && !isAll && can(role, "settings") && (
+            <Link
+              href="/dashboard/settings"
+              className="mb-6 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm transition-colors hover:bg-warning/15"
+            >
+              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+              <span>
+                <strong className="font-medium">This studio still has sample contact details.</strong>{" "}
+                <span className="text-muted-foreground">
+                  Add its real address and phone in Settings (and real team names in Team &amp; hours) before guests call. Until then
+                  Shanaya won&apos;t read them out.
+                </span>
+              </span>
+            </Link>
+          )}
+          {children}
+        </main>
+      </SidebarInset>
       <LiveRefresh salonId={salon.id} />
-    </div>
+      <Toaster position="bottom-right" />
+    </SidebarProvider>
   );
 }
 
 function ShellSkeleton() {
   return (
-    <div className="min-h-dvh lg:flex" aria-busy="true">
-      <aside className="hidden h-dvh w-64 shrink-0 flex-col gap-6 border-r border-line px-6 py-6 lg:flex">
-        <p className="display-cut text-[1.625rem]">&nbsp;</p>
-        <div className="h-10 animate-pulse rounded-xl bg-linen" />
-        <div className="grid gap-2">
-          {Array.from({ length: 8 }, (_, i) => <div key={i} className="h-9 animate-pulse rounded-xl bg-linen/70" />)}
+    <div className="flex min-h-dvh" aria-busy="true">
+      <aside className="hidden w-64 shrink-0 flex-col gap-4 border-r bg-sidebar p-3 md:flex">
+        <Skeleton className="h-12 rounded-lg" />
+        <div className="grid gap-2 pt-4">
+          {Array.from({ length: 9 }, (_, i) => (
+            <Skeleton key={i} className="h-8 rounded-md" />
+          ))}
         </div>
       </aside>
-      <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8 xl:px-12">
-        <div className="h-10 w-72 animate-pulse rounded-xl bg-linen" />
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-28 animate-pulse rounded-2xl bg-linen/70" />)}
+      <div className="flex-1">
+        <div className="h-14 border-b" />
+        <div className="px-4 py-6 md:px-6 lg:px-8">
+          <Skeleton className="h-8 w-64" />
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-28 rounded-xl" />
+            ))}
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

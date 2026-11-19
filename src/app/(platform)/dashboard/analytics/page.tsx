@@ -1,12 +1,12 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import type { Route } from "next";
 import { formatInTimeZone } from "date-fns-tz";
+import { CalendarCheck, MessageSquare, MousePointerClick, Users } from "lucide-react";
 import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireArea } from "@/lib/session";
 import { addDays, todayIn, zonedToDate } from "@/lib/time";
 import { SOURCES, type Source } from "@/lib/dashboard/overview";
-import { Card, PageHeader, Stat, money } from "@/components/dashboard-ui";
+import { Meter, PageHeader, Section, StatCard, money, SegmentedNav } from "@/components/admin/kit";
 import { BookingsByChannel, CHANNEL_COLORS, CHANNEL_LABELS } from "../overview-charts";
 import { VisitorsChart } from "./visitors-chart";
 
@@ -61,88 +61,88 @@ async function Analytics({ searchParams }: { searchParams: Promise<{ d?: string 
       <PageHeader
         eyebrow={s.isAll ? `All ${s.scopeIds.length} studios` : (s.salon.area ?? "")}
         title="Analytics"
-        subtitle="Website traffic and the booking funnel are brand-wide; bookings and chats follow the studio selector."
-        action={
-          <nav className="flex gap-1.5 text-sm" aria-label="Date range">
-            {Object.entries(RANGES).map(([k, l]) => (
-              <Link key={k} href={`/dashboard/analytics?d=${k}` as Route} aria-current={k === range ? "page" : undefined} className={`rounded-full px-3 py-1.5 ${k === range ? "bg-charcoal text-ivory" : "text-stone ring-1 ring-line hover:text-charcoal"}`}>
-                {l}
-              </Link>
-            ))}
-          </nav>
+        description="Website traffic and the booking funnel are brand-wide; bookings and chats follow the studio selector."
+        actions={
+          <SegmentedNav label="Date range" items={Object.entries(RANGES).map(([k, l]) => ({ href: `/dashboard/analytics?d=${k}` as Route, label: l, active: k === range }))} />
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Website visitors" value={st?.visitors ?? 0} hint={`${st?.views ?? 0} page views`} />
-        <Stat label="Website booking rate" value={`${pct(st?.booked_sessions ?? 0, st?.visitors ?? 0)}%`} hint={`${st?.booked_sessions ?? 0} visits ended in a booking`} />
-        <Stat label="Chat to booking" value={`${pct(chatBooked, chatTotal)}%`} hint={`${chatBooked} of ${chatTotal} chats booked`} />
-        <Stat label="Bookings made" value={allBookings} hint={`${RANGES[range]}, all channels`} />
-      </div>
+      <section aria-label="Key numbers" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard icon={Users} label="Website visitors" value={st?.visitors ?? 0} hint={`${st?.views ?? 0} page views`} />
+        <StatCard
+          icon={MousePointerClick}
+          label="Website booking rate"
+          value={`${pct(st?.booked_sessions ?? 0, st?.visitors ?? 0)}%`}
+          hint={`${st?.booked_sessions ?? 0} visits ended in a booking`}
+        />
+        <StatCard icon={MessageSquare} label="Chat to booking" value={`${pct(chatBooked, chatTotal)}%`} hint={`${chatBooked} of ${chatTotal} chats booked`} />
+        <StatCard icon={CalendarCheck} label="Bookings made" value={allBookings} hint={`${RANGES[range]}, all channels`} />
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-5">
-        <Card className="xl:col-span-3">
-          <h2 className="display-cut text-[1.375rem]">Website visitors</h2>
-          <p className="mb-4 text-xs text-stone">Unique visits per day. No cookies; visitors who opt out of tracking aren&apos;t counted.</p>
+        <Section className="xl:col-span-3" title="Website visitors" description="Unique visits per day. No cookies; visitors who opt out of tracking aren't counted.">
           <VisitorsChart data={visitors} />
-        </Card>
-        <Card className="xl:col-span-2">
-          <h2 className="display-cut text-[1.375rem]">Booking funnel</h2>
-          <p className="mb-4 text-xs text-stone">Website visits reaching each step of the booking page.</p>
+        </Section>
+        <Section className="xl:col-span-2" title="Booking funnel" description="Website visits reaching each step of the booking page.">
           <ol className="grid gap-3">
             {FUNNEL.map((name, i) => (
               <li key={name} className="text-sm">
                 <div className="flex items-baseline justify-between gap-3">
                   <span>{name}</span>
-                  <span className="tabular-nums text-stone">
-                    <span className="text-charcoal">{funnel[i]}</span>
+                  <span className="tabular text-muted-foreground">
+                    <span className="text-foreground">{funnel[i]}</span>
                     {i > 0 && ` · ${pct(funnel[i], funnel[0])}%`}
                   </span>
                 </div>
-                <div className="mt-1.5 h-2 rounded-full bg-linen" aria-hidden="true">
-                  <div className="h-2 rounded-full" style={{ width: `${Math.max(funnel[i] ? 2 : 0, pct(funnel[i], Math.max(1, funnel[0])))}%`, background: CHANNEL_COLORS.web }} />
-                </div>
+                <Meter pct={Math.max(funnel[i] ? 2 : 0, pct(funnel[i], Math.max(1, funnel[0])))} color={CHANNEL_COLORS.web} />
               </li>
             ))}
           </ol>
           {st && st.chat_sessions > 0 && (
-            <p className="mt-5 border-t border-line pt-4 text-sm text-stone">
-              <span className="text-charcoal tabular-nums">{st.chat_sessions}</span> visits used the concierge; <span className="text-charcoal tabular-nums">{st.chat_booked}</span> of them booked on the website ({pct(st.chat_booked, st.chat_sessions)}%).
+            <p className="mt-5 border-t pt-4 text-sm text-muted-foreground">
+              <span className="tabular text-foreground">{st.chat_sessions}</span> visits used the concierge;{" "}
+              <span className="tabular text-foreground">{st.chat_booked}</span> of them booked on the website ({pct(st.chat_booked, st.chat_sessions)}%).
             </p>
           )}
-        </Card>
+        </Section>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-5">
-        <Card className="xl:col-span-3">
-          <h2 className="display-cut text-[1.375rem]">Bookings by channel</h2>
-          <p className="mb-4 text-xs text-stone">When each booking was made, and where it came from.</p>
+        <Section className="xl:col-span-3" title="Bookings by channel" description="When each booking was made, and where it came from.">
           <BookingsByChannel data={series} />
-        </Card>
-        <Card className="xl:col-span-2">
-          <h2 className="display-cut text-[1.375rem]">Channel mix</h2>
-          <ul className="mt-4 grid gap-4">
+        </Section>
+        <Section className="xl:col-span-2" title="Channel mix">
+          <ul className="grid gap-4">
             {SOURCES.map((k) => (
               <li key={k} className="text-sm">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="flex items-center gap-2"><span aria-hidden="true" className="size-2.5 rounded-sm" style={{ background: CHANNEL_COLORS[k] }} />{CHANNEL_LABELS[k]}</span>
-                  <span className="tabular-nums text-stone"><span className="text-charcoal">{totals[k].count}</span> · {pct(totals[k].count, allBookings)}%</span>
+                  <span className="flex items-center gap-2">
+                    <span aria-hidden="true" className="size-2.5 rounded-sm" style={{ background: CHANNEL_COLORS[k] }} />
+                    {CHANNEL_LABELS[k]}
+                  </span>
+                  <span className="tabular text-muted-foreground">
+                    <span className="text-foreground">{totals[k].count}</span> · {pct(totals[k].count, allBookings)}%
+                  </span>
                 </div>
-                <p className="mt-0.5 pl-[1.125rem] text-xs text-stone">{money(totals[k].value, s.salon.currency)} booked value</p>
+                <Meter pct={pct(totals[k].count, allBookings)} color={CHANNEL_COLORS[k]} />
+                <p className="mt-1 text-xs text-muted-foreground">{money(totals[k].value, s.salon.currency)} booked value</p>
               </li>
             ))}
           </ul>
-          <h3 className="mt-6 border-t border-line pt-4 text-sm font-medium">Most viewed pages</h3>
+          <h3 className="mt-6 border-t pt-4 text-sm font-semibold">Most viewed pages</h3>
           {st?.pages.length ? (
             <ol className="mt-2 grid gap-1.5 text-sm">
               {st.pages.map((p) => (
-                <li key={p.path} className="flex justify-between gap-3"><span className="truncate text-stone">{p.path}</span><span className="tabular-nums">{p.views}</span></li>
+                <li key={p.path} className="flex justify-between gap-3">
+                  <span className="truncate text-muted-foreground">{p.path}</span>
+                  <span className="tabular">{p.views}</span>
+                </li>
               ))}
             </ol>
           ) : (
-            <p className="mt-2 text-sm text-stone">No website visits recorded yet.</p>
+            <p className="mt-2 text-sm text-muted-foreground">No website visits recorded yet.</p>
           )}
-        </Card>
+        </Section>
       </div>
     </div>
   );
