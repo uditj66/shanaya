@@ -71,6 +71,8 @@ export async function SiteFooter({ brand }: { brand: BrandData }) {
           <div className="flex gap-6">
             <Link href={brandHref("/privacy")} className="inline-flex min-h-10 items-center hover:text-charcoal">Privacy</Link>
             <Link href={brandHref("/contact")} className="inline-flex min-h-10 items-center hover:text-charcoal">Contact</Link>
+            {/* Staff sign in on the same address (the dashboard has its own layout, so this is a full page load). */}
+            <a href="/login" className="inline-flex min-h-10 items-center hover:text-charcoal">Staff login</a>
           </div>
         </div>
       </div>
