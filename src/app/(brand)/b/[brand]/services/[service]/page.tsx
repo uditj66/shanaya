@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { brand as brandParam } from "next/root-params";
 import { ArrowRight } from "lucide-react";
 import { BrandImage } from "@/components/brand/brand-image";
+import { ConciergePage } from "@/components/concierge/page-context";
 import { Breadcrumbs, Faqs, JsonLd } from "@/components/brand/sections";
 import { ClipReveal } from "@/components/motion/clip-reveal";
 import { Magnetic } from "@/components/motion/magnetic";
@@ -55,6 +56,7 @@ async function Treatment({ params }: Pick<PageProps<"/b/[brand]/services/[servic
   return (
     <>
       <JsonLd data={[serviceLd(brand, t), breadcrumbLd(brand, [["Home", "/"], ["Treatments", "/services"], [t.name, `/services/${t.slug}`]]), faqLd(faqs)]} />
+      <ConciergePage kind="service" service={t.slug} name={t.name} />
       <Breadcrumbs items={[["Treatments", "/services"], [t.categoryLabel, `/services?category=${t.categorySlug}`], [t.name, null]]} />
 
       <section className="container-page grid gap-10 pt-8 pb-20 md:grid-cols-12 md:gap-12 md:pt-12 md:pb-32">
@@ -98,6 +100,9 @@ async function Treatment({ params }: Pick<PageProps<"/b/[brand]/services/[servic
             </Magnetic>
             <Button asChild size="lg" variant="quiet">
               <Link href={brandHref("/studios")}>Choose a studio</Link>
+            </Button>
+            <Button type="button" variant="link" data-open-concierge={`Is the ${t.name} right for my skin?`}>
+              Ask Shanaya if it suits you
             </Button>
           </div>
         </div>

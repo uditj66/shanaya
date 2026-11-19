@@ -3,6 +3,7 @@ import Link from "next/link";
 import { brand as brandParam } from "next/root-params";
 import { ArrowRight } from "lucide-react";
 import { BrandImage } from "@/components/brand/brand-image";
+import { ConciergePage } from "@/components/concierge/page-context";
 import { SpecialistPortrait } from "@/components/brand/specialist-portrait";
 import { HeroMedia } from "@/components/brand/hero-media";
 import { JsonLd, SampleBadge, SectionHeader } from "@/components/brand/sections";
@@ -54,6 +55,7 @@ export default async function Home() {
   return (
     <PageTransition>
       <JsonLd data={[organizationLd(brand, studios.length), websiteLd(brand)]} />
+      <ConciergePage kind="home" />
 
       {/* 1 ── Hero ─────────────────────────────────────────── */}
       <section aria-labelledby="hero-title" className="@container relative">

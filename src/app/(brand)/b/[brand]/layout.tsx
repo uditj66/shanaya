@@ -6,7 +6,8 @@ import { MotionProvider } from "@/components/motion/motion-provider";
 import { SiteFooter } from "@/components/brand/site-footer";
 import { SiteHeader } from "@/components/brand/site-header";
 import { Toaster } from "@/components/ui/toast";
-import { getBrand, getBrandSlugs } from "@/lib/brand/data";
+import { Concierge } from "@/components/concierge/concierge";
+import { getBrand, getBrandSlugs, getStudios } from "@/lib/brand/data";
 import "../../../globals.css";
 
 /*
@@ -38,8 +39,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function BrandRootLayout({ children }: LayoutProps<"/b/[brand]">) {
-  const brand = await getBrand(await brandParam());
+  const slug = await brandParam();
+  const [brand, studios] = await Promise.all([getBrand(slug), getStudios(slug)]);
   if (!brand) notFound();
+  const flagship = studios.find((s) => s.isFlagship) ?? studios[0];
 
   return (
     <html lang={brand.locale} className={`${display.variable} ${ui.variable} antialiased`}>
@@ -51,6 +54,7 @@ export default async function BrandRootLayout({ children }: LayoutProps<"/b/[bra
           <SiteHeader name={brand.name} />
           <main id="main">{children}</main>
           <SiteFooter brand={brand} />
+          {flagship && <Concierge brand={brand.slug} agentName={brand.agent_name} voiceSlug={flagship.salonSlug} nudge={brand.nudge} />}
         </MotionProvider>
         <Toaster />
       </body>

@@ -183,6 +183,7 @@ body {
 @keyframes sheet-out-right { to { translate: 100% 0; } }
 @keyframes sheet-in-bottom { from { translate: 0 100%; } }
 @keyframes sheet-out-bottom { to { translate: 0 100%; } }
+@keyframes typing { 0%, 60%, 100% { opacity: 0.25; translate: 0 0; } 30% { opacity: 1; translate: 0 -3px; } }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* Above-the-fold image wipe (CSS only, starts at first paint) */
