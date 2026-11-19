@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireSalon } from "@/lib/session";
 import { fmtHuman, todayIn } from "@/lib/time";
 import { addTimeOff, deleteTimeOff, saveStaff } from "../actions";
@@ -6,7 +8,7 @@ import type { Tables } from "@/lib/database.types";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export default async function Team({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+async function Team({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { salon, supabase, isAdmin } = await requireSalon();
   const { error } = await searchParams;
   const [{ data: staff }, { data: hours }, { data: timeOff }] = await Promise.all([
@@ -113,5 +115,14 @@ export default async function Team({ searchParams }: { searchParams: Promise<{ e
         </ul>
       </Card>
     </div>
+  );
+}
+
+// The page's live data streams inside its own Suspense boundary (instant navigation; Cache Components best practice).
+export default function Page(props: Parameters<typeof Team>[0]) {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <Team {...props} />
+    </Suspense>
   );
 }

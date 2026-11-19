@@ -4,7 +4,7 @@
 // loaded from the calls table (channel "web"), so past turns and tool results can't be forged from the client.
 import { NextResponse, type NextRequest } from "next/server";
 import { openai } from "@ai-sdk/openai";
-import { convertToModelMessages, createIdGenerator, createUIMessageStreamResponse, isStepCount, streamText, toUIMessageStream, validateUIMessages, type UIMessage } from "ai";
+import { convertToModelMessages, createIdGenerator, createUIMessageStream, createUIMessageStreamResponse, isStepCount, streamText, toUIMessageStream, validateUIMessages, type UIMessage } from "ai";
 import { z } from "zod";
 import { adminClient } from "@/lib/supabase/admin";
 import { loadSalonContext } from "@/lib/agent/context";
@@ -34,7 +34,8 @@ const Body = z.object({
     .optional(),
 });
 
-type State = { ui?: UIMessage[]; turns?: number };
+/** takeover: a team member is answering this chat from the dashboard inbox, so the AI stays quiet. */
+type State = { ui?: UIMessage[]; turns?: number; takeover?: { by: string; at: string } | null };
 
 /** Resolve the brand, the entry branch (studio page → that studio, else the flagship) and a trusted page context. */
 async function resolve(brand: string, page?: z.infer<typeof Body>["page"]) {
@@ -92,6 +93,19 @@ export async function POST(req: NextRequest, { params }: RouteContext<"/api/conc
     return NextResponse.json({ error: "This chat has reached its limit. Please call the studio and the team will be glad to help." }, { status: 429 });
   }
 
+  // A team member has taken over: save the guest's message for them and don't run the model.
+  if (state.takeover) {
+    await db
+      .from("calls")
+      .update({
+        agent_state: { ...state, ui: [...(state.ui ?? []), message].slice(-60) } as unknown as Json,
+        transcript: `${call.transcript ?? ""}\nGuest: ${textOf(message as UIMessage)}`.trim(),
+        ended_at: new Date().toISOString(),
+      })
+      .eq("id", call.id);
+    return createUIMessageStreamResponse({ stream: createUIMessageStream({ execute: () => {} }) });
+  }
+
   const tools = conciergeTools(brand, { ctx, channel: "web", callId: call.id, callerPhone: null });
   const history = await validateUIMessages({ messages: [...(state.ui ?? []), message as UIMessage], tools }).catch(() => [message as UIMessage]);
 
@@ -118,10 +132,15 @@ export async function POST(req: NextRequest, { params }: RouteContext<"/api/conc
       onEnd: async ({ messages }) => {
         const last = messages[messages.length - 1];
         const reply = last?.role === "assistant" ? textOf(last) : "";
+        // A team member may have taken over (and replied) while this answer streamed: keep their changes.
+        const { data: now } = await db.from("calls").select("agent_state").eq("id", call.id).single();
+        const fresh = (now?.agent_state ?? {}) as State;
+        const ids = new Set(messages.map((x) => x.id));
+        const staffLines = (fresh.ui ?? []).slice((state.ui ?? []).length).filter((x) => !ids.has(x.id));
         await db
           .from("calls")
           .update({
-            agent_state: { ...state, ui: messages.slice(-60), turns: (state.turns ?? 0) + 1 } as unknown as Json,
+            agent_state: { ...state, takeover: fresh.takeover ?? null, ui: [...messages, ...staffLines].slice(-60), turns: (state.turns ?? 0) + 1 } as unknown as Json,
             transcript: `${call.transcript ?? ""}\nGuest: ${textOf(message as UIMessage)}${reply ? `\nAI: ${reply}` : ""}`.trim(),
             ended_at: new Date().toISOString(),
           })
@@ -140,5 +159,6 @@ export async function GET(req: NextRequest, { params }: RouteContext<"/api/conci
   const studios = await getStudios(brand);
   const { data: call } = await adminClient().from("calls").select("salon_id, channel, agent_state").eq("id", id).maybeSingle();
   if (!call || call.channel !== "web" || !studios.some((s) => s.id === call.salon_id)) return NextResponse.json({ messages: [] });
-  return NextResponse.json({ messages: ((call.agent_state ?? {}) as State).ui ?? [] }, { headers: { "Cache-Control": "no-store" } });
+  const state = (call.agent_state ?? {}) as State;
+  return NextResponse.json({ messages: state.ui ?? [], takeover: state.takeover ? { by: state.takeover.by } : null }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -1,9 +1,11 @@
+import { Suspense } from "react";
+import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireSalon } from "@/lib/session";
 import { saveService } from "../actions";
 import { Badge, Button, Card, Field, Input, PageHeader, Textarea, money } from "@/components/dashboard-ui";
 import type { Tables } from "@/lib/database.types";
 
-export default async function Services({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+async function Services({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { salon, supabase, isAdmin } = await requireSalon();
   const { error } = await searchParams;
   const [{ data: services }, { data: staff }, { data: links }] = await Promise.all([
@@ -66,5 +68,14 @@ export default async function Services({ searchParams }: { searchParams: Promise
         </Card>
       )}
     </div>
+  );
+}
+
+// The page's live data streams inside its own Suspense boundary (instant navigation; Cache Components best practice).
+export default function Page(props: Parameters<typeof Services>[0]) {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <Services {...props} />
+    </Suspense>
   );
 }

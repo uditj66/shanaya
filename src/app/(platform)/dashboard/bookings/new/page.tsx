@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireSalon } from "@/lib/session";
 import { BookingError, getSlots } from "@/lib/booking-service";
 import { isDate, todayIn } from "@/lib/time";
@@ -6,7 +8,7 @@ import { Button, Card, Field, Input, PageHeader, Select, Textarea, money } from 
 
 type SP = { service?: string; date?: string; staff?: string; error?: string };
 
-export default async function NewBooking({ searchParams }: { searchParams: Promise<SP> }) {
+async function NewBooking({ searchParams }: { searchParams: Promise<SP> }) {
   const { salon, supabase } = await requireSalon();
   const sp = await searchParams;
   const [{ data: services }, { data: staff }] = await Promise.all([
@@ -80,5 +82,14 @@ export default async function NewBooking({ searchParams }: { searchParams: Promi
         </form>
       </Card>
     </div>
+  );
+}
+
+// The page's live data streams inside its own Suspense boundary (instant navigation; Cache Components best practice).
+export default function Page(props: Parameters<typeof NewBooking>[0]) {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <NewBooking {...props} />
+    </Suspense>
   );
 }

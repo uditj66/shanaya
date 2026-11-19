@@ -100,10 +100,10 @@ body {
 
 /* Native form controls in the same style everywhere (dashboard) */
 .field {
-  @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/20;
+  @apply w-full min-h-10 rounded-lg border border-line bg-white/85 px-3 py-2 text-sm text-charcoal outline-none transition placeholder:text-stone/70 hover:border-champagne focus:border-brass focus:bg-white focus:ring-4 focus:ring-brass/10;
 }
 .label {
-  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-muted;
+  @apply mb-1.5 block text-[0.75rem] font-medium tracking-[0.04em] text-stone;
 }
 
 /* Small caps label used above headings */

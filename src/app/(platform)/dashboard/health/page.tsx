@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireSalon } from "@/lib/session";
 import { fmtHuman } from "@/lib/time";
 import { healthEvents } from "@/lib/health";
@@ -10,7 +12,7 @@ const LABEL: Record<string, string> = {
   cap_reached: "Daily limit reached",
 };
 
-export default async function Health() {
+async function Health() {
   const { salon, supabase, role } = await requireSalon();
   const { events, recentProblems } = await healthEvents(supabase, salon.id, role);
 
@@ -44,5 +46,14 @@ export default async function Health() {
         )}
       </Card>
     </div>
+  );
+}
+
+// The page's live data streams inside its own Suspense boundary (instant navigation; Cache Components best practice).
+export default function Page() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <Health />
+    </Suspense>
   );
 }

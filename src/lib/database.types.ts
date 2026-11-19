@@ -76,8 +76,8 @@ export type Database = {
         ];
       };
       customers: {
-        Row: { created_at: string; email: string | null; id: string; name: string; notes: string; phone: string; salon_id: string };
-        Insert: { created_at?: string; email?: string | null; id?: string; name: string; notes?: string; phone: string; salon_id: string };
+        Row: { created_at: string; email: string | null; id: string; name: string; notes: string; phone: string; salon_id: string; tags: string[]; preferences: string };
+        Insert: { created_at?: string; email?: string | null; id?: string; name: string; notes?: string; phone: string; salon_id: string; tags?: string[]; preferences?: string };
         Update: Partial<Database["public"]["Tables"]["customers"]["Insert"]>;
         Relationships: [
           { foreignKeyName: "customers_salon_id_fkey"; columns: ["salon_id"]; isOneToOne: false; referencedRelation: "salons"; referencedColumns: ["id"] },
@@ -99,8 +99,8 @@ export type Database = {
         ];
       };
       salon_members: {
-        Row: { created_at: string; role: Database["public"]["Enums"]["member_role"]; salon_id: string; user_id: string };
-        Insert: { created_at?: string; role?: Database["public"]["Enums"]["member_role"]; salon_id: string; user_id: string };
+        Row: { created_at: string; role: Database["public"]["Enums"]["member_role"]; salon_id: string; user_id: string; staff_id: string | null };
+        Insert: { created_at?: string; role?: Database["public"]["Enums"]["member_role"]; salon_id: string; user_id: string; staff_id?: string | null };
         Update: Partial<Database["public"]["Tables"]["salon_members"]["Insert"]>;
         Relationships: [
           { foreignKeyName: "salon_members_salon_id_fkey"; columns: ["salon_id"]; isOneToOne: false; referencedRelation: "salons"; referencedColumns: ["id"] },
@@ -287,6 +287,12 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["gift_card_requests"]["Insert"]>;
         Relationships: [];
       };
+      site_events: {
+        Row: { brand_id: string; created_at: string; detail: Json; id: number; kind: string; path: string; session_id: string };
+        Insert: { brand_id: string; created_at?: string; detail?: Json; id?: never; kind: string; path?: string; session_id: string };
+        Update: Partial<Database["public"]["Tables"]["site_events"]["Insert"]>;
+        Relationships: [];
+      };
       job_applications: {
         Row: {
           brand_id: string; city: string; consent_at: string; created_at: string; email: string; experience_years: number | null; id: string;
@@ -300,17 +306,26 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: { [_ in never]: never };
+    Views: {
+      guest_summary: {
+        Row: {
+          id: string; salon_id: string; name: string; phone: string; email: string | null; tags: string[]; created_at: string;
+          visits: number; upcoming: number; spend: number; last_visit: string | null; next_visit: string | null;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
       hit_rate_limit: { Args: { p_key: string; p_limit: number; p_window_seconds: number }; Returns: boolean };
       create_salon: { Args: { p_currency?: string; p_name: string; p_slug: string; p_timezone?: string }; Returns: string };
+      site_stats: { Args: { p_brand: string; p_since: string; p_tz?: string }; Returns: Json };
     };
     Enums: {
       booking_source: "phone" | "web" | "staff";
       booking_status: "confirmed" | "cancelled" | "completed" | "no_show";
       call_channel: "phone" | "web";
       callback_status: "open" | "done";
-      member_role: "owner" | "manager" | "staff";
+      member_role: "owner" | "manager" | "staff" | "receptionist" | "stylist";
       enquiry_status: "new" | "contacted" | "converted" | "closed";
     };
     CompositeTypes: { [_ in never]: never };

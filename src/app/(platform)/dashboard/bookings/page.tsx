@@ -1,9 +1,11 @@
+import { Suspense } from "react";
+import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireSalon } from "@/lib/session";
 import { fmtHuman } from "@/lib/time";
 import { setBookingStatus } from "../actions";
 import { Badge, ButtonLink, Card, Empty, Input, PageHeader, Select, money } from "@/components/dashboard-ui";
 
-export default async function Bookings({ searchParams }: { searchParams: Promise<{ ref?: string; status?: string; q?: string; when?: string }> }) {
+async function Bookings({ searchParams }: { searchParams: Promise<{ ref?: string; status?: string; q?: string; when?: string }> }) {
   const { salon, supabase } = await requireSalon();
   const sp = await searchParams;
   const when = sp.when ?? "upcoming";
@@ -67,5 +69,14 @@ export default async function Bookings({ searchParams }: { searchParams: Promise
         )}
       </Card>
     </div>
+  );
+}
+
+// The page's live data streams inside its own Suspense boundary (instant navigation; Cache Components best practice).
+export default function Page(props: Parameters<typeof Bookings>[0]) {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <Bookings {...props} />
+    </Suspense>
   );
 }

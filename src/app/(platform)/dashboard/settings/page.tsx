@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireSalon } from "@/lib/session";
 import { appUrl } from "@/lib/agent/vapi";
 import { connectPhoneNumber, saveSettings } from "./actions";
@@ -7,7 +9,7 @@ import { Button, Card, Field, Input, PageHeader, Select, Textarea } from "@/comp
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-export default async function Settings({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string; welcome?: string }> }) {
+async function Settings({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string; welcome?: string }> }) {
   const { salon } = await requireSalon();
   const vapiManaged = !!process.env.VAPI_ASSISTANT_ID;
   const sp = await searchParams;
@@ -104,5 +106,14 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <a href={`/w/${salon.slug}`} target="_blank" className="text-sm text-gold-dark underline">Open your booking assistant →</a>
       </Card>
     </div>
+  );
+}
+
+// The page's live data streams inside its own Suspense boundary (instant navigation; Cache Components best practice).
+export default function Page(props: Parameters<typeof Settings>[0]) {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <Settings {...props} />
+    </Suspense>
   );
 }

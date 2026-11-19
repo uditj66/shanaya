@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  async redirects() {
+    return [
+      // Phase 4 renamed these dashboard areas.
+      { source: "/dashboard/customers", destination: "/dashboard/guests", permanent: true },
+      { source: "/dashboard/calls", destination: "/dashboard/inbox", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
