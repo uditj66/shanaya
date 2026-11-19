@@ -72,7 +72,7 @@ export async function getStudios(slug: string) {
   if (!brand) return [];
   const { data } = await db()
     .from("salons")
-    .select("id, studio_slug, city, area, address, phone, timezone, business_hours, latitude, longitude, hero_image, gallery, is_flagship, is_placeholder, max_days_ahead")
+    .select("id, slug, studio_slug, city, area, address, phone, timezone, business_hours, latitude, longitude, hero_image, gallery, is_flagship, is_placeholder, max_days_ahead")
     .eq("brand_id", brand.id)
     .eq("published", true)
     .not("studio_slug", "is", null)
@@ -83,6 +83,7 @@ export async function getStudios(slug: string) {
     const showContact = !s.is_placeholder || SHOW_SAMPLES;
     return {
       id: s.id,
+      salonSlug: s.slug, // the branch slug used by the voice/widget endpoints
       slug: s.studio_slug!,
       city: s.city ?? "",
       area: s.area ?? "",

@@ -6,6 +6,7 @@ import { connection } from "next/server";
 import { brand as brandParam } from "next/root-params";
 import { ArrowRight } from "lucide-react";
 import { BrandImage } from "@/components/brand/brand-image";
+import { ConciergePage } from "@/components/concierge/page-context";
 import { SpecialistPortrait } from "@/components/brand/specialist-portrait";
 import { StudioMap } from "@/components/brand/studio-map";
 import { Breadcrumbs, JsonLd } from "@/components/brand/sections";
@@ -55,6 +56,7 @@ async function StudioView({ params }: Pick<PageProps<"/b/[brand]/studios/[studio
   return (
     <>
       <JsonLd data={[studioLd(brand, s), breadcrumbLd(brand, [["Home", "/"], ["Studios", "/studios"], [s.area, `/studios/${s.slug}`]])]} />
+      <ConciergePage kind="studio" studio={s.slug} name={s.area} />
       <Breadcrumbs items={[["Studios", "/studios"], [s.area, null]]} />
 
       <section className="container-page grid gap-10 pt-8 pb-16 md:grid-cols-12 md:pt-12 md:pb-24">

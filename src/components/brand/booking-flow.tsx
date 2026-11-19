@@ -13,6 +13,7 @@ import { Badge, Skeleton } from "@/components/ui/display";
 import { Checkbox, Input, Label, Textarea } from "@/components/ui/form-controls";
 import { EASE_OUT_SOFT } from "@/components/motion/motion-provider";
 import { BrandImage } from "./brand-image";
+import { ConciergePage } from "@/components/concierge/page-context";
 
 export type BookTreatment = { code: string; name: string; group: string; minutes: number | null; price: number; consultationFirst: boolean; image: string };
 export type BookStudio = { slug: string; city: string; area: string; lat: number | null; lng: number | null };
@@ -75,6 +76,7 @@ export function BookingFlow({ brand, treatments, studios }: { brand: string; tre
 
   return (
     <div className="grid gap-10 lg:grid-cols-12 lg:gap-16">
+      <ConciergePage kind="booking" bookingStep={done ? 3 : step} />
       <div className="min-w-0 lg:col-span-8">
         {/* Progress */}
         {!done && (
