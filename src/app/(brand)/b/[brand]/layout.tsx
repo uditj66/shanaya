@@ -7,6 +7,7 @@ import { SiteFooter } from "@/components/brand/site-footer";
 import { SiteHeader } from "@/components/brand/site-header";
 import { Toaster } from "@/components/ui/toast";
 import { Concierge } from "@/components/concierge/concierge";
+import { SiteTracker } from "@/components/brand/site-tracker";
 import { getBrand, getBrandSlugs, getStudios } from "@/lib/brand/data";
 import "../../../globals.css";
 
@@ -50,6 +51,7 @@ export default async function BrandRootLayout({ children }: LayoutProps<"/b/[bra
         <a href="#main" className="sr-only z-[70] rounded-full bg-charcoal px-5 py-3 text-sm text-ivory focus:not-sr-only focus:fixed focus:top-4 focus:left-4">
           Skip to content
         </a>
+        <SiteTracker brand={brand.slug} />
         <MotionProvider>
           <SiteHeader name={brand.name} />
           <main id="main">{children}</main>

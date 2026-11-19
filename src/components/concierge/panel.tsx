@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useChat } from "@ai-sdk/react";
+import { track } from "@/lib/track-client";
 import { DefaultChatTransport, type InferUITools, type UIMessage } from "ai";
 import * as m from "motion/react-m";
 import { ArrowUp, Mic, PhoneOff, X } from "lucide-react";
@@ -56,13 +57,18 @@ export default function ConciergePanel({
 }) {
   const [id] = useState(chatId);
   const [restored, setRestored] = useState<ChatMessage[] | null>(null);
+  const [teamAtOpen, setTeamAtOpen] = useState<string | null>(null);
 
   // Restore this tab's conversation (the server keeps it; the browser keeps only the id).
   useEffect(() => {
     let alive = true;
     fetch(`/api/concierge/${brand}?id=${id}`)
       .then((r) => r.json())
-      .then((d) => alive && setRestored(Array.isArray(d.messages) ? d.messages : []))
+      .then((d) => {
+        if (!alive) return;
+        setTeamAtOpen(d.takeover?.by ?? null);
+        setRestored(Array.isArray(d.messages) ? d.messages : []);
+      })
       .catch(() => alive && setRestored([]));
     return () => {
       alive = false;
@@ -79,7 +85,7 @@ export default function ConciergePanel({
       {restored === null ? (
         <div className="grid flex-1 place-items-center text-sm text-stone" aria-busy="true">One moment…</div>
       ) : (
-        <Conversation brand={brand} id={id} initial={restored} agentName={agentName} voiceSlug={voiceSlug} opener={opener} onClose={onClose} />
+        <Conversation brand={brand} id={id} initial={restored} teamAtOpen={teamAtOpen} agentName={agentName} voiceSlug={voiceSlug} opener={opener} onClose={onClose} />
       )}
     </div>
   );
@@ -89,6 +95,7 @@ function Conversation({
   brand,
   id,
   initial,
+  teamAtOpen,
   agentName,
   voiceSlug,
   opener,
@@ -97,6 +104,7 @@ function Conversation({
   brand: string;
   id: string;
   initial: ChatMessage[];
+  teamAtOpen: string | null;
   agentName: string;
   voiceSlug: string;
   opener?: string | null;
@@ -113,7 +121,8 @@ function Conversation({
         },
       }),
   );
-  const { messages, sendMessage, status, error, clearError } = useChat<ChatMessage>({ id, messages: initial, transport });
+  const { messages, setMessages, sendMessage, status, error, clearError } = useChat<ChatMessage>({ id, messages: initial, transport });
+  const team = useTeamReplies(brand, id, teamAtOpen, status === "ready" || status === "error", messages.length, setMessages);
   const [input, setInput] = useState("");
   const [voiceLines, setVoiceLines] = useState<{ role: "ai" | "you"; text: string }[]>([]);
   const voice = useShanayaVoice(`/api/widget/${voiceSlug}/voice`, (role, text) => setVoiceLines((l) => [...l, { role, text }]));
@@ -126,6 +135,7 @@ function Conversation({
     const t = text.trim();
     if (!t || busy) return;
     clearError();
+    track("chat_message");
     void sendMessage({ text: t });
   };
 
@@ -148,7 +158,7 @@ function Conversation({
   }, [messages, voiceLines, status]);
 
   const lastAssistant = [...messages].reverse().find((x) => x.role === "assistant");
-  const showTyping = status === "submitted" || (status === "streaming" && !lastAssistant?.parts.some((p) => p.type === "text" && p.text));
+  const showTyping = !team && (status === "submitted" || (status === "streaming" && !lastAssistant?.parts.some((p) => p.type === "text" && p.text)));
 
   return (
     <>
@@ -158,7 +168,7 @@ function Conversation({
         </span>
         <div className="min-w-0 flex-1">
           <p className="display-cut text-[1.25rem] leading-tight">{agentName}</p>
-          <p className="text-[0.75rem] text-stone">Your beauty concierge · AI assistant</p>
+          <p className="text-[0.75rem] text-stone" aria-live="polite">{team ? `${team} from the studio team is with you` : "Your beauty concierge · AI assistant"}</p>
         </div>
         {voice.status === "live" || voice.status === "connecting" ? (
           <button onClick={voice.stop} className="grid size-11 place-items-center rounded-full bg-danger/10 text-danger hover:bg-danger/15" aria-label="End voice call">
@@ -248,6 +258,32 @@ function Conversation({
   );
 }
 
+/**
+ * A team member can take over a chat from the dashboard inbox. While the panel is open and idle, check the saved
+ * conversation every few seconds and pull in their replies. Returns the team member's name while they're answering.
+ */
+function useTeamReplies(brand: string, id: string, initialBy: string | null, idle: boolean, count: number, setMessages: (m: ChatMessage[]) => void) {
+  const [by, setBy] = useState<string | null>(initialBy);
+  useEffect(() => {
+    if (!idle || count === 0) return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const d = await fetch(`/api/concierge/${brand}?id=${id}`, { cache: "no-store" }).then((r) => r.json());
+        if (!alive) return;
+        setBy(d.takeover?.by ?? null);
+        if (Array.isArray(d.messages) && d.messages.length > count) setMessages(d.messages);
+      } catch {}
+    };
+    const t = setInterval(tick, by ? 3000 : 8000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [brand, id, idle, count, by, setMessages]);
+  return by;
+}
+
 function friendlyError(e: Error) {
   try {
     const j = JSON.parse(e.message);
@@ -262,6 +298,16 @@ function MessageView({ msg, isLast, busy, onSend, brand, chatId }: { msg: ChatMe
   if (msg.role === "user") {
     const text = msg.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
     return <Bubble role="user">{text}</Bubble>;
+  }
+  // A reply typed by a team member from the dashboard inbox.
+  const staff = (msg.metadata as { staff?: string } | undefined)?.staff;
+  if (staff) {
+    return (
+      <div className="space-y-1">
+        <p className="text-[0.6875rem] tracking-[0.04em] text-stone">{staff} · studio team</p>
+        <Bubble role="assistant">{msg.parts.map((p) => (p.type === "text" ? p.text : "")).join("")}</Bubble>
+      </div>
+    );
   }
   // The model often calls tools before it writes; show her words first, then the cards, and the reply chips last.
   const rank = (p: Part) => (p.type === "text" ? 0 : p.type === "tool-suggest_replies" ? 2 : 1);

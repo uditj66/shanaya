@@ -1,5 +1,6 @@
 "use client";
 import { useActionState, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { setTrackBrand, track } from "@/lib/track-client";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as m from "motion/react-m";
@@ -73,6 +74,14 @@ export function BookingFlow({ brand, treatments, studios }: { brand: string; tre
 
   const [state, action, pending] = useActionState<BookState, FormData>(bookAppointment, null);
   const done = state?.ok ? state : null;
+
+  // Funnel analytics: one event per step reached, and one when the booking is confirmed.
+  useEffect(() => {
+    setTrackBrand(brand);
+    if (done) track("booking_done", { kind: done.kind, service: sel.service });
+    else track("booking_step", { step: step + 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, !!done]);
 
   return (
     <div className="grid gap-10 lg:grid-cols-12 lg:gap-16">

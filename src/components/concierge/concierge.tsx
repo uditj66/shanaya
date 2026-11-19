@@ -2,6 +2,7 @@
 // Floating concierge launcher + proactive nudges. This part ships with every page, so it is tiny:
 // the chat panel (AI SDK, cards, voice) is a separate chunk loaded only when the guest opens it.
 import { useEffect, useRef, useState } from "react";
+import { track } from "@/lib/track-client";
 import dynamic from "next/dynamic";
 import * as m from "motion/react-m";
 import { AnimatePresence } from "motion/react";
@@ -63,6 +64,7 @@ export function Concierge({ brand, agentName, voiceSlug, nudge }: { brand: strin
     setBubble(null);
     setOpener(first || null);
     setOpen(true);
+    track("chat_open", { via: first ? "nudge" : "launcher" });
     store.set(OPENED_KEY, "1", session());
   };
   const close = () => setOpen(false);

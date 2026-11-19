@@ -29,7 +29,7 @@ export async function createBookingAction(form: FormData) {
     redirect(`${back}&error=${encodeURIComponent(msg)}` as Route);
   }
   revalidatePath("/dashboard");
-  redirect(`/dashboard?date=${s(form, "date")}`);
+  redirect(`/dashboard/calendar?date=${s(form, "date")}`);
 }
 
 export async function setBookingStatus(form: FormData) {

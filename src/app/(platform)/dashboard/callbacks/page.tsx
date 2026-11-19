@@ -1,9 +1,11 @@
+import { Suspense } from "react";
+import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireSalon } from "@/lib/session";
 import { fmtHuman } from "@/lib/time";
 import { resolveCallback } from "../actions";
 import { Badge, Button, Card, Empty, PageHeader } from "@/components/dashboard-ui";
 
-export default async function Callbacks() {
+async function Callbacks() {
   const { salon, supabase } = await requireSalon();
   const { data } = await supabase
     .from("callbacks")
@@ -41,5 +43,14 @@ export default async function Callbacks() {
         ))}
       </div>
     </div>
+  );
+}
+
+// The page's live data streams inside its own Suspense boundary (instant navigation; Cache Components best practice).
+export default function Page() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <Callbacks />
+    </Suspense>
   );
 }
