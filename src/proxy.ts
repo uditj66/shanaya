@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Brand websites are served from their own domains by the same app.
+// One website per salon brand, served from its own address by this app:
+//   guests get the brand site (/, /services, /book …), staff use /login and /dashboard on the SAME address.
 // BRAND_HOSTS="lumiere.in=lumiere,www.lumiere.in=lumiere"; in development lumiere.localhost:3000 just works.
 const BRAND_HOSTS: Record<string, string> = Object.fromEntries(
   (process.env.BRAND_HOSTS ?? "")
@@ -12,14 +13,35 @@ const BRAND_HOSTS: Record<string, string> = Object.fromEntries(
 );
 if (process.env.NODE_ENV !== "production") BRAND_HOSTS["lumiere.localhost"] ??= "lumiere";
 
-const AUTH_PATHS = ["/dashboard", "/onboarding", "/login"];
+// When set, the platform's own pages (e.g. shanaya-self.vercel.app) forward visitors to this single main address.
+// APIs (/api/…, incl. the Vapi phone webhook), the embeddable widget and /w/… keep working on every address.
+const PRIMARY_SITE = (() => {
+  try {
+    return process.env.PRIMARY_SITE_URL ? new URL(process.env.PRIMARY_SITE_URL) : null;
+  } catch {
+    return null;
+  }
+})();
+
+/** Staff screens: same on every address. */
+const STAFF_PATHS = ["/dashboard", "/onboarding", "/login"];
+const isStaffPath = (p: string) => STAFF_PATHS.some((s) => p === s || p.startsWith(`${s}/`));
 
 export async function proxy(request: NextRequest) {
   const host = (request.headers.get("host") ?? "").split(":")[0].toLowerCase();
   const { pathname } = request.nextUrl;
-
-  // 1. Brand domain → the brand site, with clean URLs (/services → /b/lumiere/services).
   const brand = BRAND_HOSTS[host];
+
+  // 1. Old platform address → the one main website (same path), so there's a single place for guests and staff.
+  if (!brand && PRIMARY_SITE && host !== PRIMARY_SITE.hostname && !pathname.startsWith("/w/")) {
+    const url = new URL(`${pathname}${request.nextUrl.search}`, PRIMARY_SITE);
+    return NextResponse.redirect(url, 307);
+  }
+
+  // 2. Staff screens (login, dashboard, onboarding) on any address, including the brand's own.
+  if (isStaffPath(pathname)) return staffGate(request, pathname);
+
+  // 3. Brand address → the brand site, with clean URLs (/services → /b/lumiere/services).
   if (brand) {
     // Framework-generated URLs (e.g. opengraph-image) already carry the internal prefix: serve them as they are.
     if (pathname === `/b/${brand}` || pathname.startsWith(`/b/${brand}/`)) return NextResponse.next();
@@ -29,25 +51,22 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  // 2. Platform domain: refresh the Supabase session and keep signed-out users out of the dashboard.
-  if (!AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return NextResponse.next();
+  return NextResponse.next();
+}
 
+/** Refresh the Supabase session and keep signed-out visitors out of the dashboard. */
+async function staffGate(request: NextRequest, pathname: string) {
   let response = NextResponse.next({ request });
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (toSet) => {
-          toSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
+  const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll: (toSet) => {
+        toSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
       },
     },
-  );
-
+  });
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims && pathname.startsWith("/dashboard")) {
     const url = request.nextUrl.clone();
