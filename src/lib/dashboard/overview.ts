@@ -111,4 +111,3 @@ export async function loadOverview(s: Session) {
     chats: { total: webChats.length, booked: chatBooked, calls: (chats ?? []).length - webChats.length },
   };
 }
-export type Overview = Awaited<ReturnType<typeof loadOverview>>;

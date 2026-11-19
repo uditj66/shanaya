@@ -22,6 +22,9 @@ export const PERMISSIONS = {
   guests: ["owner", "manager", "receptionist", "stylist"],
   inbox: ["owner", "manager", "receptionist"],
   leads: ["owner", "manager", "receptionist"],
+  giftcards: ["owner", "manager", "receptionist"],
+  members: ["owner", "manager", "receptionist"],
+  payments: ["owner", "manager"],
   website: ["owner", "manager"],
   analytics: ["owner", "manager"],
   services: ["owner", "manager"],
@@ -35,7 +38,7 @@ export const can = (role: Role, area: Area) => (PERMISSIONS[area] as readonly Ro
 /**
  * Signed-in user + where they are working. Owners/managers with several studios can pick "All studios"
  * (brand-wide overview, inbox, guests, analytics); pages that need one studio then use the flagship.
- * Redirects to /login or /onboarding.
+ * Redirects to /login when signed out or not linked to a studio.
  */
 export const requireSalon = cache(async () => {
   // Everything behind a sign-in is personal and live: render it per request, so reading the clock (today, "Good morning")
@@ -51,7 +54,7 @@ export const requireSalon = cache(async () => {
     .eq("user_id", auth.user.id)
     .order("created_at");
   const list = (memberships ?? []).filter((m) => m.salon);
-  if (!list.length) redirect("/onboarding");
+  if (!list.length) redirect("/login");
 
   const chosen = (await cookies()).get(SALON_COOKIE)?.value;
   const leaders = list.filter((m) => m.role === "owner" || m.role === "manager");

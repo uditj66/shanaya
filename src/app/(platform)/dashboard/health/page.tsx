@@ -10,6 +10,7 @@ const LABEL: Record<string, string> = {
   call_error: "Call ended with an error",
   webhook_auth: "Rejected request",
   cap_reached: "Daily limit reached",
+  payment_issue: "Payment problem",
 };
 
 async function Health() {

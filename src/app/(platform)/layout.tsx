@@ -7,8 +7,9 @@ const display = Bodoni_Moda({ variable: "--font-display", subsets: ["latin"], ax
 const ui = Hanken_Grotesk({ variable: "--font-ui", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Shanaya · AI Receptionist for Salons & Spas",
-  description: "Answers every call, books appointments into your calendar, and hands staff a clear summary.",
+  title: "Lumière · Team dashboard",
+  description: "Bookings, calls and Shanaya, the AI receptionist, for the Lumière team.",
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = { colorScheme: "light", themeColor: "#fbf8f3" };

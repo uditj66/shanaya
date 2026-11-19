@@ -10,6 +10,8 @@ import * as m from "motion/react-m";
 import { ArrowUp, Mic, PhoneOff, X } from "lucide-react";
 import type { ConciergeTools } from "@/lib/concierge/tools";
 import { saveChatLead } from "@/app/(brand)/b/[brand]/concierge-actions";
+import { depositCheckout } from "@/app/(brand)/b/[brand]/payment-actions";
+import { DepositPay } from "@/components/brand/deposit-pay";
 import { useShanayaVoice } from "@/components/use-shanaya-voice";
 import { VoiceOrb } from "@/components/voice-orb";
 import { BrandImage } from "@/components/brand/brand-image";
@@ -346,7 +348,7 @@ function PartView({ part, isLast, busy, onSend, brand, chatId }: { part: Part; i
     case "tool-check_availability":
       return <SlotChips data={out as AvailabilityOut} onSend={onSend} disabled={busy || !isLast} />;
     case "tool-book_appointment":
-      return "success" in out ? <BookedCard b={out as BookedOut} /> : null;
+      return "success" in out ? <BookedCard b={out as BookedOut} onSend={onSend} /> : null;
     case "tool-ask_for_contact_details":
       return <ContactForm reason={String(out.reason ?? "")} brand={brand} chatId={chatId} onDone={(name) => onSend(`I've shared my contact details (${name}).`)} />;
     case "tool-request_callback":
@@ -404,7 +406,13 @@ type TreatmentCard = { code: string; name: string; headline: string; price: numb
 type StudioCard = { branch_id: string; slug: string; area: string; city: string; address: string | null; image: string; hours: string };
 type SpecialistCard = { name: string; title: string; specialties: string[]; href: string };
 type AvailabilityOut = { branch?: string; date?: string; service?: string; available?: { time: string; therapists: string[] }[]; next_available_date?: string; next_available?: { time: string; therapists: string[] }[]; consultation_required?: boolean };
-type BookedOut = { reference: string; branch: string; service?: string; therapist?: string; date: string; time: string; price: number; address?: string | null };
+type BookedOut = {
+  reference: string; branch: string; service?: string; therapist?: string; date: string; time: string; price: number; address?: string | null;
+  deposit?: { amount: number; token: string; hold_until: string | null; refund_hours: number };
+  member?: { tier: string; benefit: "discount" | "included"; discount: number };
+  gift_card?: { paid: number; balance_left: number };
+  pay_at_studio?: number;
+};
 
 function TreatmentCards({ cards, onSend, disabled }: { cards: TreatmentCard[]; onSend: (t: string) => void; disabled: boolean }) {
   return (
@@ -498,10 +506,22 @@ function SlotChips({ data, onSend, disabled }: { data: AvailabilityOut; onSend: 
   );
 }
 
-function BookedCard({ b }: { b: BookedOut }) {
+function BookedCard({ b, onSend }: { b: BookedOut; onSend: (t: string) => void }) {
+  const [state, setState] = useState<string | null>(b.deposit ? null : "none");
+  // After a reload the saved card can't know whether the deposit was paid since, so ask the server once.
+  useEffect(() => {
+    if (!b.deposit) return;
+    let alive = true;
+    void depositCheckout(b.deposit.token).then((r) => alive && setState(r?.state ?? "pending"));
+    return () => {
+      alive = false;
+    };
+  }, [b.deposit]);
+  const held = b.deposit && state === "pending";
+  const lapsed = b.deposit && (state === "expired" || state === "refunded");
   return (
     <div className="rounded-2xl border border-champagne bg-ivory p-4">
-      <p className="text-[0.6875rem] uppercase tracking-[0.18em] text-brass-ink">Booked</p>
+      <p className="text-[0.6875rem] uppercase tracking-[0.18em] text-brass-ink">{held ? "Held for you" : lapsed ? "Hold ended" : b.deposit && state === "paid" ? "Confirmed · deposit paid" : "Booked"}</p>
       <p className="display-cut mt-1 text-[1.25rem]">{b.service}</p>
       <p className="mt-1 text-[0.8125rem] text-stone">
         {dayName(b.date)}, {to12(b.time)} · {b.branch}
@@ -510,6 +530,46 @@ function BookedCard({ b }: { b: BookedOut }) {
       <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-linen px-3 py-1 text-[0.8125rem]">
         Reference <span className="font-medium tracking-[0.12em]">{b.reference}</span>
       </p>
+      {(b.member || b.gift_card) && (
+        <dl className="mt-3 grid gap-1 text-[0.8125rem]">
+          {b.member && (
+            <div className="flex justify-between gap-3">
+              <dt className="text-stone">{b.member.benefit === "included" ? `Included with ${b.member.tier}` : `${b.member.tier} discount`}</dt>
+              <dd className="tabular-nums">−{formatPrice(b.member.discount)}</dd>
+            </div>
+          )}
+          {b.gift_card && (
+            <div className="flex justify-between gap-3">
+              <dt className="text-stone">Gift card ({formatPrice(b.gift_card.balance_left)} left)</dt>
+              <dd className="tabular-nums">−{formatPrice(b.gift_card.paid)}</dd>
+            </div>
+          )}
+          <div className="flex justify-between gap-3 font-medium">
+            <dt>To pay at the studio</dt>
+            <dd className="tabular-nums">{b.pay_at_studio ? formatPrice(b.pay_at_studio) : "Nothing"}</dd>
+          </div>
+        </dl>
+      )}
+      {held && b.deposit && (
+        <div className="mt-4 border-t border-line pt-4">
+          <DepositPay
+            compact
+            token={b.deposit.token}
+            amount={b.deposit.amount}
+            holdUntil={b.deposit.hold_until}
+            refundHours={b.deposit.refund_hours}
+            onPaid={() => {
+              setState("paid");
+              onSend(`I've paid the ₹${b.deposit!.amount.toLocaleString("en-IN")} deposit.`);
+            }}
+            onRelease={() => {
+              setState("expired");
+              onSend("I'd like to choose a different time.");
+            }}
+          />
+        </div>
+      )}
+      {lapsed && <p className="mt-3 text-[0.8125rem] text-stone">This time is no longer held. Ask me for another time and I&apos;ll find one.</p>}
     </div>
   );
 }

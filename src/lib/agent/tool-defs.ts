@@ -36,8 +36,19 @@ export const toolDefs: ToolDef[] = [
         phone: { type: "string", description: "Her mobile number. Optional only on phone calls with caller ID (the caller's number is used)" },
         therapist_name: { type: "string", description: "Optional, only if the guest asked for someone" },
         notes: { type: "string", description: "Skin concerns, pregnancy, allergies, occasion, special requests" },
+        gift_card_code: { type: "string", description: "Optional gift card code she wants to pay with, e.g. LUM-AB12-CD34 (check it first with check_gift_card)" },
       },
       required: ["branch_id", "service", "date", "time", "customer_name"],
+    },
+  },
+  {
+    name: "check_gift_card",
+    description:
+      "Check a gift card code: whether it can be used and its balance. Use it when she wants to pay with a gift card or asks how much is left on one, before book_appointment. Membership benefits need no tool: book_appointment applies them from her mobile number.",
+    parameters: {
+      type: "object",
+      properties: { code: { type: "string", description: "The gift card code, e.g. LUM-AB12-CD34" } },
+      required: ["code"],
     },
   },
   {

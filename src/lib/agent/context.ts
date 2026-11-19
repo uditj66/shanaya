@@ -10,6 +10,8 @@ export type SalonContext = {
   packages: Tables<"packages">[];
   branches: SisterBranch[]; // other branches of the same brand (so Shanaya can refer callers)
   team?: { salon_id: string; name: string; title: string | null }[]; // every therapist/doctor/beautician across the brand
+  memberships?: Pick<Tables<"memberships">, "name" | "price" | "period" | "benefits" | "discount_pct" | "skip_deposit" | "included_per_period" | "included_period" | "included_categories">[];
+  giftCards?: boolean; // the brand sells gift cards that can pay for bookings
 };
 
 /** Everything the agent needs to know about one branch. */
@@ -30,8 +32,16 @@ export async function loadSalonContext(db: SupabaseClient<Database>, salonId: st
         .order("city")
     : { data: [] as SisterBranch[] };
   const ids = [salon.id, ...(branches ?? []).map((b) => b.id)];
-  const { data: team } = await db.from("staff").select("salon_id, name, title").in("salon_id", ids).eq("active", true).order("sort_order");
-  return { salon, services: services ?? [], staff: staff ?? [], packages: packages ?? [], branches: branches ?? [], team: team ?? [] };
+  const [{ data: team }, { data: memberships }] = await Promise.all([
+    db.from("staff").select("salon_id, name, title").in("salon_id", ids).eq("active", true).order("sort_order"),
+    salon.brand_id
+      ? db.from("memberships").select("name, price, period, benefits, discount_pct, skip_deposit, included_per_period, included_period, included_categories").eq("brand_id", salon.brand_id).eq("published", true).order("sort_order")
+      : Promise.resolve({ data: [] as NonNullable<SalonContext["memberships"]> }),
+  ]);
+  return {
+    salon, services: services ?? [], staff: staff ?? [], packages: packages ?? [], branches: branches ?? [], team: team ?? [],
+    memberships: memberships ?? [], giftCards: !!salon.brand_id,
+  };
 }
 
 /** "Lumière Facial Studio & Spa, Bandra West" — how the branch introduces itself. */

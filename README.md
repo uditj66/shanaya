@@ -1,9 +1,9 @@
-# Shanaya: AI receptionist platform for salons & spas
+# Shanaya: Lumière's AI receptionist
 
-A multi-salon SaaS. Each salon gets:
+Built for Lumière Facial Studio & Spa (all 21 studios). It gives the team:
 
 - **An AI phone receptionist** (Vapi + OpenAI) that answers calls, recommends treatments and books, reschedules or cancels appointments against live availability.
-- **A website chat/voice widget** (OpenAI) that books the same way.
+- **"Ask Shanaya" on the Lumière website**: chat (OpenAI) and voice (the same Vapi assistant) that book the same way.
 - **A staff dashboard** with a live day calendar per therapist, bookings, guests, call transcripts and recordings, call-back requests, services, team hours, leave and settings.
 
 ## How it works
@@ -14,7 +14,8 @@ Guest calls salon number ──► Vapi ──assistant-request──► /api/va
                               Vapi ──tool-calls─────────► /api/vapi ──► booking engine ──► Supabase (Postgres)
                               Vapi ──end-of-call-report─► /api/vapi ──► transcript, summary, recording saved
 
-Website visitor ──► widget.js ──► /w/[slug] ──► /api/widget/[slug] ──► OpenAI Responses API + same tools
+Website visitor ──► Lumière site "Ask Shanaya" ──► /api/concierge/[brand] ──► OpenAI (OPENAI_MODEL) + same tools
+                                   voice button ──► /api/widget/[slug]/voice ──► Vapi web call
 
 Staff ──► /dashboard (Supabase Auth + row level security) ◄── realtime updates when the AI books
 ```
@@ -34,10 +35,10 @@ supabase/migrations/        database schema, security rules (applied to the clou
 supabase/data/              standard Lumière catalogue + branches (loaded by npm run seed:chain)
 src/lib/availability.ts     slot engine (pure, unit tested)
 src/lib/booking-service.ts  book / reschedule / cancel / customers (shared by AI and staff)
-src/lib/agent/              prompt, tools, OpenAI web agent, Vapi assistant builder
-src/app/api/vapi            Vapi webhook (all salons)
-src/app/api/widget/[slug]   public widget API
-src/app/w/[slug]            widget chat page (embedded via /widget.js)
+src/lib/agent/              prompt, tools, chat model setting, Vapi assistant builder
+src/app/api/vapi            Vapi webhook (all studios)
+src/app/api/concierge       website "Ask Shanaya" chat
+src/app/api/widget/[slug]/voice  starts a website voice call (Vapi)
 src/app/dashboard/*         staff dashboard
 scripts/seed-owner.mts      creates a demo owner login
 scripts/smoke-test.mts      simulates a full phone call end to end
@@ -64,9 +65,9 @@ scripts/smoke-test.mts      simulates a full phone call end to end
    - In the dashboard, open **Settings → Phone number**, paste the Vapi phone number ID and click **Connect**. This points the number at `/api/vapi`.
 5. Call the number. The booking appears on the dashboard within a second.
 
-## Onboarding a new salon client
+## Adding a team member or studio
 
-They sign up at `/login`, create their studio, then fill in **Settings** (hours, policies, offers), **Services** and **Team & hours**. Connect a phone number and paste the widget snippet on their website. No code changes are needed.
+There is no public sign-up. Team logins are created by the owner (see scripts/seed-owner.mts) and linked to their studios in the salon_members table; a login with no studio is told to ask the owner.
 
 ## Next steps for v2
 

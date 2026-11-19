@@ -9,7 +9,7 @@ export async function resolveBooking(brandSlug: string, studioSlug: string, code
   const db = adminClient();
   const { data: salon } = await db
     .from("salons")
-    .select("id, timezone, currency, max_days_ahead, area, brand:brand_id!inner (slug)")
+    .select("id, timezone, currency, max_days_ahead, area, brand_id, brand:brand_id!inner (slug)")
     .eq("studio_slug", studioSlug)
     .eq("brand.slug", brandSlug)
     .eq("published", true)
@@ -17,7 +17,7 @@ export async function resolveBooking(brandSlug: string, studioSlug: string, code
   if (!salon) return null;
   const { data: service } = await db
     .from("services")
-    .select("id, name, code, duration_minutes, price, consultation_first")
+    .select("id, name, code, category, duration_minutes, price, consultation_first")
     .eq("salon_id", salon.id)
     .eq("code", code)
     .eq("active", true)

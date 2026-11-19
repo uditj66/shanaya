@@ -6,8 +6,12 @@ import { BookingError, cancelBooking, createBooking, getSlots, nextAvailableDate
 import { pickSlots, type Slot } from "../availability";
 import { countryCodeFor, fmtDate, fmtTime, isDate, isTime, normalizePhone, todayIn } from "../time";
 import { displayName, loadSalonContext, type SalonContext } from "./context";
+import { money } from "./prompt";
 import { toolDefs, type ToolDef } from "./tool-defs";
 import { logEvent } from "../events";
+import { settleDepositOnCancel } from "../payments/deposits";
+import { applyBookingPerks, checkGiftCard, cleanGiftCode, type BookingPayment } from "../payments/redemption";
+import { rateLimited } from "../rate-limit";
 
 export { toolDefs, type ToolDef };
 
@@ -109,11 +113,83 @@ async function webVerified(t: ToolContext, a: Args, phone: string) {
   return true;
 }
 
+const APPOINTMENT_FIELDS =
+  "reference, starts_at, ends_at, status, price, deposit_amount, deposit_status, gift_card_amount, gift_card_state, member_benefit, member_discount, salon:salon_id (brand_name, area, name, timezone, currency), staff:staff_id (name), service:service_id (name)" as const;
+
+/** One appointment as Shanaya reads it back: treatment, specialist, when, where, and how it's paid for. */
+function appointmentView(
+  t: ToolContext,
+  b: {
+    reference: string; starts_at: string; ends_at: string; status: string; price: number;
+    deposit_amount: number | null; deposit_status: string | null; gift_card_amount: number | null; gift_card_state: string | null;
+    member_benefit: string | null; member_discount: number | null;
+    salon: { brand_name: string | null; area: string | null; name: string; timezone: string; currency: string } | null;
+    staff: { name: string } | null; service: { name: string } | null;
+  },
+) {
+  const tz = b.salon?.timezone ?? t.ctx.salon.timezone;
+  const m = (n: number) => money(n, b.salon?.currency ?? t.ctx.salon.currency);
+  const price = Number(b.price);
+  const memberOff = Number(b.member_discount ?? 0);
+  const gift = b.gift_card_state === "used" ? Number(b.gift_card_amount ?? 0) : 0;
+  const deposit = b.deposit_status === "paid" ? Number(b.deposit_amount ?? 0) : 0;
+  return {
+    reference: b.reference,
+    service: b.service?.name,
+    therapist: b.staff?.name,
+    branch: b.salon ? displayName(b.salon) : "",
+    date: fmtDate(b.starts_at, tz),
+    time: fmtTime(b.starts_at, tz),
+    minutes: Math.round((Date.parse(b.ends_at) - Date.parse(b.starts_at)) / 60000),
+    status: b.status === "confirmed" && b.deposit_status === "pending" ? "held until the deposit is paid" : b.status,
+    price,
+    ...(b.member_benefit && { member: b.member_benefit === "included" ? "included with her membership" : `member discount ${m(memberOff)}` }),
+    ...(gift > 0 && { paid_with_gift_card: gift }),
+    ...(deposit > 0 && { deposit_paid: deposit }),
+    pay_at_studio: Math.max(0, price - memberOff - gift - deposit),
+  };
+}
+
+/** What a booking's membership benefit and gift card mean, in words Shanaya can pass on. */
+function paymentView(p: BookingPayment | undefined, noDeposit: boolean, currency: string) {
+  if (!p) return { no_deposit: noDeposit };
+  const m = (n: number) => money(n, currency);
+  const parts = [
+    p.member && (p.member.benefit === "included" ? `This treatment is included with her ${p.member.tier} membership (${p.member.includedNote}).` : `Her ${p.member.tier} member discount takes ${m(p.member.discount)} off.`),
+    p.giftCard && `${m(p.giftCard.amount)} was paid with her gift card; ${m(p.giftCard.balance)} is left on it.`,
+    p.payAtStudio > 0 ? `She pays ${m(p.payAtStudio)} at the studio.` : "Nothing is left to pay at the studio.",
+    p.giftCard && `If she cancels at least ${p.refundHours} hours before, the gift card amount goes back on her card.`,
+    p.member && "Ask her to bring the phone her membership is registered to; the studio confirms it at the visit.",
+  ].filter(Boolean);
+  return {
+    no_deposit: noDeposit,
+    ...(p.member && { member: { tier: p.member.tier, benefit: p.member.benefit, discount: p.member.discount } }),
+    ...(p.giftCard && { gift_card: { paid: p.giftCard.amount, balance_left: p.giftCard.balance } }),
+    pay_at_studio: p.payAtStudio,
+    payment_note: parts.join(" "),
+  };
+}
+
 const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = {
+  async check_gift_card(t, a) {
+    const brandId = t.ctx.salon.brand_id;
+    if (!brandId) return { error: "Gift cards aren't available at this branch." };
+    const key = `giftcheck:${t.callId ?? t.callerPhone ?? "anon"}`;
+    if (await rateLimited(key, 6, 600)) return { error: "Too many gift card checks. Ask her to try again in a few minutes, or to show the card at the studio." };
+    const g = await checkGiftCard(brandId, str(a.code));
+    if (!g.ok) return { valid: false, message: `${g.error} Read the code back to check it.` };
+    return {
+      valid: true,
+      balance: g.balance,
+      expires: g.expiresAt ? fmtDate(g.expiresAt, t.ctx.salon.timezone) : null,
+      message: `Valid. Balance ${money(g.balance, t.ctx.salon.currency)}. Pass it as gift_card_code to book_appointment: it pays the treatment price (after any member discount) up to the balance, and no deposit is needed.`,
+    };
+  },
+
   async check_availability(t, a) {
     const ctx = await branchCtx(t, a.branch_id);
     const svc = serviceIn(ctx, a.service ?? a.service_id);
-    if (!svc) return { error: "Unknown service. Use a service code from the menu, e.g. FAC003." };
+    if (!svc) return { error: "Unknown service. Retry with the [code] of the closest listed treatment (internal: never mention codes to the guest; if nothing matches, offer the closest treatment by name)." };
     const consult = consultationOnly(svc);
     if (consult) return consult;
     const date = str(a.date);
@@ -149,12 +225,20 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
   async book_appointment(t, a) {
     const ctx = await branchCtx(t, a.branch_id);
     const svc = serviceIn(ctx, a.service ?? a.service_id);
-    if (!svc) return { error: "Unknown service. Use a service code from the menu." };
+    if (!svc) return { error: "Unknown service. Retry with the [code] of the closest listed treatment (internal: never mention codes to the guest; if nothing matches, offer the closest treatment by name)." };
     const consult = consultationOnly(svc);
     if (consult) return consult;
     const phone = phoneFor(t, a.phone);
     if (phone.length < 10) return { error: "Ask the guest for her mobile number." };
     if (!isDate(a.date) || !isTime(a.time)) return { error: "date must be YYYY-MM-DD and time HH:MM" };
+    const brandId = ctx.salon.brand_id;
+    // A gift card is checked before taking the time, so a mistyped code doesn't leave a booking behind.
+    const giftCode = str(a.gift_card_code) ? cleanGiftCode(str(a.gift_card_code)) : "";
+    if (giftCode) {
+      if (!brandId) return { error: "Gift cards can't be used at this branch. Book without it; she can show the card at the studio." };
+      const g = await checkGiftCard(brandId, giftCode);
+      if (!g.ok) return { error: `${g.error} Read the code back to her character by character, or book without the gift card.` };
+    }
     const db = adminClient();
     const { booking, customer } = await createBooking(db, {
       salonId: ctx.salon.id,
@@ -167,8 +251,19 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
       source: t.channel,
       callId: t.callId,
     });
+    // Membership benefits (by her mobile number) and the gift card, exactly as on the website booking page.
+    const { data: brand } = brandId ? await db.from("brands").select("deposit_refund_hours").eq("id", brandId).maybeSingle() : { data: null };
+    const perks = await applyBookingPerks(booking.id, {
+      brandId, phone, service: { category: svc.category, price: Number(svc.price) }, startsAt: booking.starts_at, timezone: ctx.salon.timezone,
+      giftCode, refundHours: brand?.deposit_refund_hours ?? 24,
+    });
+    if (!perks.ok) {
+      await db.from("bookings").update({ status: "cancelled", cancel_reason: "Gift card couldn't be used" }).eq("id", booking.id);
+      return { error: `${perks.error} The booking was not made. Offer to book without the gift card.` };
+    }
     if (t.callId) await db.from("calls").update({ customer_id: ctx.salon.id === t.ctx.salon.id ? customer.id : null, outcome: "booked" }).eq("id", t.callId);
     return {
+      ...paymentView(perks.payment, perks.noDeposit, ctx.salon.currency),
       success: true,
       reference: booking.reference,
       branch: displayName(ctx.salon),
@@ -232,35 +327,22 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
     if (t.channel === "web") {
       // No caller ID online: never list someone's bookings from a phone number alone.
       if (!str(a.reference)) return { error: "For privacy, ask for her booking reference (from her confirmation) as well as her mobile number." };
-      const b = await ownedBooking(t, a.reference, phone);
-      const ctx = await branchCtx(t, b.salon_id);
-      return {
-        guest: b.customer?.name,
-        appointments: [{ reference: b.reference, branch: displayName(ctx.salon), date: fmtDate(b.starts_at, ctx.salon.timezone), time: fmtTime(b.starts_at, ctx.salon.timezone) }],
-      };
+      const owned = await ownedBooking(t, a.reference, phone);
+      const { data } = await adminClient().from("bookings").select(APPOINTMENT_FIELDS).eq("id", owned.id);
+      return { guest: owned.customer?.name, appointments: (data ?? []).map((b) => appointmentView(t, b)) };
     }
     const db = adminClient();
     const { data: customers } = await db.from("customers").select("id, name, salon_id").in("salon_id", brandIds(t)).eq("phone", phone);
     if (!customers?.length) return { appointments: [], message: "No bookings found with that number." };
     const { data } = await db
       .from("bookings")
-      .select("reference, starts_at, salon:salon_id (brand_name, area, name, timezone), staff:staff_id (name), service:service_id (name)")
+      .select(APPOINTMENT_FIELDS)
       .in("customer_id", customers.map((c) => c.id))
       .eq("status", "confirmed")
       .gte("starts_at", new Date().toISOString())
       .order("starts_at")
       .limit(5);
-    return {
-      guest: customers[0].name,
-      appointments: (data ?? []).map((b) => ({
-        reference: b.reference,
-        branch: b.salon ? displayName(b.salon) : "",
-        service: b.service?.name,
-        therapist: b.staff?.name,
-        date: fmtDate(b.starts_at, b.salon?.timezone ?? t.ctx.salon.timezone),
-        time: fmtTime(b.starts_at, b.salon?.timezone ?? t.ctx.salon.timezone),
-      })),
-    };
+    return { guest: customers[0].name, appointments: (data ?? []).map((b) => appointmentView(t, b)) };
   },
 
   async reschedule_appointment(t, a) {
@@ -275,7 +357,17 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
     const owned = await ownedBooking(t, a.reference, phoneFor(t, a.phone));
     await cancelBooking(adminClient(), { salonId: owned.salon_id, reference: owned.reference, reason: str(a.reason) || "Cancelled by guest via AI" });
     if (t.callId) await adminClient().from("calls").update({ outcome: "cancelled" }).eq("id", t.callId);
-    return { success: true, message: "Cancelled." };
+    // Online bookings may carry a deposit: refunded with enough notice, otherwise kept (brand rule).
+    const deposit = await settleDepositOnCancel(owned.salon_id, owned.reference);
+    return {
+      success: true,
+      message:
+        deposit === "refunded" ? "Cancelled. Her deposit is being refunded in full to her original payment method (usually 5 to 7 working days)."
+        : deposit === "kept" ? "Cancelled. Because it was cancelled late, the deposit is kept, as per the booking terms."
+        : deposit === "card_returned" ? "Cancelled. The amount paid with her gift card is back on the card, ready to use again."
+        : deposit === "card_kept" ? "Cancelled. Because it was cancelled late, the gift card amount used for it is kept, as per the booking terms."
+        : "Cancelled.",
+    };
   },
 
   async request_callback(t, a) {

@@ -8,13 +8,14 @@ import { convertToModelMessages, createIdGenerator, createUIMessageStream, creat
 import { z } from "zod";
 import { adminClient } from "@/lib/supabase/admin";
 import { loadSalonContext } from "@/lib/agent/context";
-import { buildPrompt, greeting } from "@/lib/agent/prompt";
+import { buildPrompt, chatGreeting } from "@/lib/agent/prompt";
 import { getMenu, getStudios } from "@/lib/brand/data";
 import { conciergeAddendum, type PageContext } from "@/lib/concierge/prompt";
 import { conciergeTools } from "@/lib/concierge/tools";
 import { clientIp, overDailyCap, rateLimited } from "@/lib/rate-limit";
 import { logEvent } from "@/lib/events";
 import type { Json } from "@/lib/database.types";
+import { chatModel } from "@/lib/agent/chat-model";
 
 export const maxDuration = 60;
 
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest, { params }: RouteContext<"/api/conc
   if (!call) {
     const { data, error } = await db
       .from("calls")
-      .insert({ id, salon_id: ctx.salon.id, channel: "web", started_at: new Date().toISOString(), transcript: `AI: ${greeting(ctx, "chat")}` })
+      .insert({ id, salon_id: ctx.salon.id, channel: "web", started_at: new Date().toISOString(), transcript: `AI: ${chatGreeting(ctx)}` })
       .select("id, salon_id, channel, agent_state, transcript")
       .single();
     if (error) return NextResponse.json({ error: "Couldn't start the chat. Please try again." }, { status: 500 });
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest, { params }: RouteContext<"/api/conc
   const history = await validateUIMessages({ messages: [...(state.ui ?? []), message as UIMessage], tools }).catch(() => [message as UIMessage]);
 
   const result = streamText({
-    model: openai(ctx.salon.llm_model || process.env.OPENAI_MODEL || "gpt-5.4-mini"),
+    model: openai(chatModel()),
     instructions: `${buildPrompt(ctx, { mode: "chat" })}\n\n${conciergeAddendum(r.page, ctx.salon.brand_name ?? ctx.salon.name)}`,
     messages: await convertToModelMessages(history),
     tools,

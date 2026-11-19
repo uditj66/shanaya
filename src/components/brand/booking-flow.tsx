@@ -1,12 +1,13 @@
 "use client";
 import { useActionState, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { setTrackBrand, track } from "@/lib/track-client";
+import { DepositPay } from "@/components/brand/deposit-pay";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as m from "motion/react-m";
 import { AnimatePresence } from "motion/react";
 import { Check } from "lucide-react";
-import { bookAppointment, type BookState } from "@/app/(brand)/b/[brand]/book/actions";
+import { bookAppointment, previewGiftCard, type BookState } from "@/app/(brand)/b/[brand]/book/actions";
 import { brandHref } from "@/lib/brand/href";
 import { cn, formatDuration, formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ const to12 = (t: string) => {
 // Only render clock-dependent UI after hydration (server and browser clocks may sit either side of midnight).
 const useMounted = () => useSyncExternalStore(() => () => {}, () => true, () => false);
 
-export function BookingFlow({ brand, treatments, studios }: { brand: string; treatments: BookTreatment[]; studios: BookStudio[] }) {
+export function BookingFlow({ brand, treatments, studios, deposit }: { brand: string; treatments: BookTreatment[]; studios: BookStudio[]; deposit?: { amount: number; refundHours: number } | null }) {
   const params = useSearchParams();
   const mounted = useMounted();
   const sel = {
@@ -73,7 +74,12 @@ export function BookingFlow({ brand, treatments, studios }: { brand: string; tre
   };
 
   const [state, action, pending] = useActionState<BookState, FormData>(bookAppointment, null);
-  const done = state?.ok ? state : null;
+  // A deposit booking is "done" only once paid; until then the held time and the pay button are shown.
+  const [paid, setPaid] = useState<Extract<BookState, { kind: "booked" }> | null>(null);
+  const [released, setReleased] = useState<string | null>(null);
+  const raw = state?.ok ? state : null;
+  const holding = raw?.kind === "deposit" && !paid && released !== raw.reference ? raw : null;
+  const done = paid ?? (raw && raw.kind !== "deposit" ? raw : null);
 
   // Funnel analytics: one event per step reached, and one when the booking is confirmed.
   useEffect(() => {
@@ -119,6 +125,15 @@ export function BookingFlow({ brand, treatments, studios }: { brand: string; tre
             <m.div key={done ? "done" : step} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.5, ease: EASE_OUT_SOFT }}>
               {done ? (
                 <Confirmation state={done} />
+              ) : holding ? (
+                <DepositStage
+                  hold={holding}
+                  onPaid={(d) => setPaid({ ok: true, kind: "booked", reference: d.reference, when: d.when, startsAt: d.startsAt, minutes: d.minutes, studio: d.studio, treatment: d.treatment, specialist: holding.specialist, depositPaid: d.amount, depositRefundHours: holding.deposit.refundHours })}
+                  onRelease={() => {
+                    setReleased(holding.reference);
+                    go({ time: "" });
+                  }}
+                />
               ) : step === 0 ? (
                 <TreatmentStep treatments={treatments} onPick={(code) => go({ service: code, time: "" })} />
               ) : step === 1 ? (
@@ -126,7 +141,7 @@ export function BookingFlow({ brand, treatments, studios }: { brand: string; tre
               ) : step === 2 ? (
                 <TimeStep brand={brand} sel={sel} mounted={mounted} onSpecialist={(s) => go({ specialist: s, time: "" }, true)} onDate={(d) => go({ date: d, time: "" }, true)} onTime={(date, time) => go({ date, time })} />
               ) : (
-                <DetailsStep brand={brand} sel={sel} consult={consult} action={action} pending={pending} state={state} onAlternative={(t) => go({ time: t }, true)} />
+                <DetailsStep brand={brand} sel={sel} consult={consult} price={treatment?.price ?? 0} deposit={deposit ? { ...deposit, amount: Math.max(1, Math.min(deposit.amount, Math.round(treatment?.price ?? deposit.amount))) } : null} action={action} pending={pending} state={state} onAlternative={(t) => go({ time: t }, true)} />
               )}
             </m.div>
           </AnimatePresence>
@@ -396,6 +411,8 @@ function DetailsStep({
   brand,
   sel,
   consult,
+  price,
+  deposit,
   action,
   pending,
   state,
@@ -404,6 +421,8 @@ function DetailsStep({
   brand: string;
   sel: { service: string; studio: string; specialist: string; date: string; time: string };
   consult: boolean;
+  price: number;
+  deposit: { amount: number; refundHours: number } | null;
   action: (f: FormData) => void;
   pending: boolean;
   state: BookState;
@@ -417,14 +436,37 @@ function DetailsStep({
   const field = (name: string) => ({ id: `f-${name}`, name, defaultValue: values[name], "aria-invalid": fe[name] ? true : undefined, "aria-describedby": fe[name] ? `e-${name}` : undefined });
   const fieldError = (name: string) => (fe[name] ? <p id={`e-${name}`} className="text-[0.8125rem] text-danger">{fe[name]}</p> : null);
 
+  // Gift card: optional, checked with "Apply" so the guest sees what it covers before confirming.
+  const [giftOpen, setGiftOpen] = useState(!!values.gift_code);
+  const [gift, setGift] = useState(values.gift_code ?? "");
+  const [giftCheck, setGiftCheck] = useState<{ code: string; balance?: number; error?: string } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const giftApplied = giftCheck?.balance !== undefined && giftCheck.code === gift.trim().toUpperCase() ? giftCheck.balance : null;
+  const applyGift = async () => {
+    const code = gift.trim().toUpperCase();
+    if (!code) return;
+    setChecking(true);
+    const r = await previewGiftCard(brand, code).catch(() => ({ ok: false as const, error: "We couldn't check the code. Please try again." }));
+    setChecking(false);
+    setGiftCheck(r.ok ? { code, balance: r.balance } : { code, error: r.error });
+  };
+  const giftUsing = gift.trim() !== "";
+
   return (
     <section aria-labelledby="step-title">
       <h2 id="step-title" className="display-cut text-h1">{consult ? "Plan it with us" : "Your details"}</h2>
       <p className="mt-4 max-w-[52ch] text-stone">
         {consult
           ? "This treatment begins with a consultation. Leave your details and the studio will call you to plan it around your dates."
-          : "You'll get your booking reference straight away. Reschedule or cancel free up to 4 hours before."}
+          : deposit
+            ? `A ₹${deposit.amount.toLocaleString("en-IN")} deposit holds your time and comes off your bill at the studio. Cancel at least ${deposit.refundHours} hours before for a full refund.`
+            : "You'll get your booking reference straight away. Reschedule or cancel free up to 4 hours before."}
       </p>
+      {!consult && (
+        <p className="mt-3 max-w-[52ch] text-[0.8125rem] text-stone">
+          Lumière member? Book with the mobile number on your membership and your benefits apply automatically{deposit ? ", with no deposit" : ""}.
+        </p>
+      )}
 
       {err && (
         <div role="alert" className="mt-6 rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
@@ -466,6 +508,50 @@ function DetailsStep({
           <Label htmlFor="f-notes">{consult ? "Preferred dates and anything we should know" : "Anything we should know?"}</Label>
           <Textarea {...field("notes")} placeholder="Skin concerns, allergies, pregnancy, an occasion…" maxLength={500} />
         </div>
+        {!consult && (
+          <div className="grid gap-2 md:col-span-2">
+            {!giftOpen ? (
+              <button type="button" onClick={() => setGiftOpen(true)} className="justify-self-start text-sm text-brass-ink underline decoration-champagne underline-offset-4">
+                Have a gift card? Use it to pay
+              </button>
+            ) : (
+              <>
+                <Label htmlFor="f-gift_code">Gift card code <span className="font-normal text-stone">(optional)</span></Label>
+                <div className="flex max-w-md gap-2">
+                  <Input
+                    {...field("gift_code")}
+                    value={gift}
+                    defaultValue={undefined}
+                    onChange={(e) => setGift(e.target.value.toUpperCase())}
+                    placeholder="LUM-XXXX-XXXX"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="font-mono tracking-[0.08em]"
+                  />
+                  <Button type="button" variant="quiet" onClick={applyGift} disabled={checking || gift.trim().length < 8}>
+                    {checking ? "Checking…" : "Apply"}
+                  </Button>
+                </div>
+                {fieldError("gift_code")}
+                <p aria-live="polite" className="text-[0.8125rem]">
+                  {giftCheck?.error && giftCheck.code === gift.trim().toUpperCase() ? (
+                    <span className="text-danger">{giftCheck.error}</span>
+                  ) : giftApplied !== null ? (
+                    <span className="text-success">
+                      Balance ₹{giftApplied.toLocaleString("en-IN")}.{" "}
+                      {giftApplied >= price
+                        ? `It covers this treatment in full${price ? ` (₹${price.toLocaleString("en-IN")})` : ""}.`
+                        : `It pays ₹${giftApplied.toLocaleString("en-IN")} now; the remaining ₹${(price - giftApplied).toLocaleString("en-IN")} is paid at the studio.`}{" "}
+                      Member prices are applied first.
+                    </span>
+                  ) : (
+                    <span className="text-stone">The card pays for the treatment when you confirm, so no deposit is needed.</span>
+                  )}
+                </p>
+              </>
+            )}
+          </div>
+        )}
         <div className="grid gap-2">
           <div className="flex items-start gap-3">
             <Checkbox id="f-consent" name="consent" aria-invalid={fe.consent ? true : undefined} aria-describedby={fe.consent ? "e-consent" : undefined} className="mt-0.5" />
@@ -478,10 +564,26 @@ function DetailsStep({
         </div>
         <div className="md:col-span-2">
           <Button type="submit" size="lg" disabled={pending} className="w-full sm:w-auto">
-            {pending ? (consult ? "Sending…" : "Confirming…") : consult ? "Request a call-back" : "Confirm booking"}
+            {pending ? (consult ? "Sending…" : "Confirming…") : consult ? "Request a call-back" : deposit && !giftUsing ? "Continue" : "Confirm booking"}
           </Button>
         </div>
       </form>
+    </section>
+  );
+}
+
+/* ── Deposit ─────────────────────────────────────────────────────────── */
+function DepositStage({ hold, onPaid, onRelease }: { hold: Extract<BookState, { kind: "deposit" }>; onPaid: Parameters<typeof DepositPay>[0]["onPaid"]; onRelease: () => void }) {
+  return (
+    <section aria-labelledby="step-title">
+      <h2 id="step-title" className="display-cut text-h1">Your time is held.</h2>
+      <p className="mt-4 max-w-[52ch] text-lead text-stone">
+        {hold.treatment} at {hold.studio}, {hold.when}
+        {hold.specialist ? ` with ${hold.specialist}` : ""}. Pay the deposit to confirm it.
+      </p>
+      <div className="mt-8 max-w-xl rounded-2xl border border-line bg-white/60 p-6 md:p-8">
+        <DepositPay token={hold.deposit.token} checkout={hold.deposit.checkout} amount={hold.deposit.amount} holdUntil={hold.deposit.holdUntil} refundHours={hold.deposit.refundHours} autoOpen onPaid={onPaid} onRelease={onRelease} />
+      </div>
     </section>
   );
 }
@@ -521,6 +623,40 @@ function Summary({ treatment, studio, sel, consult }: { treatment?: BookTreatmen
   );
 }
 
+/** Member benefit, gift card and what's left to pay at the studio. */
+function PaymentSummary({ p }: { p: NonNullable<Extract<BookState, { kind: "booked" }>["payment"]> }) {
+  const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+  const rows: [string, string, string?][] = [["Treatment price", inr(p.price)]];
+  if (p.member) {
+    rows.push(
+      p.member.benefit === "included"
+        ? [`Included with ${p.member.tier}`, `−${inr(p.member.discount)}`, p.member.includedNote]
+        : [`${p.member.tier} member discount`, `−${inr(p.member.discount)}`],
+    );
+  }
+  if (p.giftCard) rows.push(["Paid with gift card", `−${inr(p.giftCard.amount)}`, `${inr(p.giftCard.balance)} left on the card`]);
+  return (
+    <div className="mx-auto mt-8 max-w-sm rounded-2xl border border-line bg-white/60 px-6 py-2 text-left text-sm">
+    <dl className="divide-y divide-line">
+      {rows.map(([k, v, note]) => (
+        <div key={k} className="flex justify-between gap-4 py-3">
+          <dt>
+            {k}
+            {note && <span className="block text-[0.75rem] text-stone">{note}</span>}
+          </dt>
+          <dd className="tabular-nums">{v}</dd>
+        </div>
+      ))}
+      <div className="flex justify-between gap-4 py-3 font-medium">
+        <dt>To pay at the studio</dt>
+        <dd className="tabular-nums">{p.payAtStudio > 0 ? inr(p.payAtStudio) : "Nothing"}</dd>
+      </div>
+    </dl>
+      {p.member && <p className="border-t border-line py-3 text-[0.75rem] text-stone">Please bring the phone your membership is registered to; the studio confirms it at your visit.</p>}
+    </div>
+  );
+}
+
 function Confirmation({ state }: { state: Extract<BookState, { ok: true }> }) {
   const ics = () => {
     if (state.kind !== "booked") return "";
@@ -546,7 +682,14 @@ function Confirmation({ state }: { state: Extract<BookState, { ok: true }> }) {
             <span className="eyebrow">Booking reference</span>
             <span className="display-cut mt-2 text-h2 tracking-[0.12em]">{state.reference}</span>
           </p>
-          <p className="mt-6 text-sm text-stone">Keep this reference to reschedule or cancel. Free changes up to 4 hours before.</p>
+          {state.payment && <PaymentSummary p={state.payment} />}
+          <p className="mt-6 text-sm text-stone">
+            {state.payment?.giftCard
+              ? `Keep this reference to reschedule or cancel. Cancel at least ${state.payment.refundHours} hours before and the gift card amount goes back on your card.`
+              : state.depositPaid
+              ? `Your ₹${state.depositPaid.toLocaleString("en-IN")} deposit is paid and comes off your bill. Keep this reference to reschedule or cancel; cancel at least ${state.depositRefundHours ?? 24} hours before for a full refund.`
+              : "Keep this reference to reschedule or cancel. Free changes up to 4 hours before."}
+          </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             <Button asChild variant="quiet">
               <a href={ics()} download={`lumiere-${state.reference}.ics`}>Add to calendar</a>

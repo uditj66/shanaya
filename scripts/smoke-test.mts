@@ -59,9 +59,8 @@ await db.from("salons").update({ vapi_phone_number_id: "smoke-test-number" }).eq
 async function run() {
   // 1. Incoming call → assistant config
   const a = await vapi({ type: "assistant-request" });
-  const knowledge: string = a.body.assistantOverrides?.variableValues?.knowledge ?? a.body.assistant?.model?.messages?.[0]?.content ?? "";
+  const knowledge: string = a.body.assistantOverrides?.variableValues?.knowledge ?? "";
   if (a.body.assistantId) pass("assistant-request returns the saved Vapi assistant + live knowledge overrides");
-  else if (a.body.assistant) pass("assistant-request returns a transient assistant (no VAPI_ASSISTANT_ID)");
   else fail("assistant-request", a);
   const branchCount = (knowledge.match(/branch_id:/g) ?? []).length;
   if (knowledge.includes("Lumière") && branchCount > 1) pass(`knowledge covers ${branchCount} branches`);

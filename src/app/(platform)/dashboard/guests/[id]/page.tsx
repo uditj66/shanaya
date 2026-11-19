@@ -9,9 +9,10 @@ import { Badge, Card, Empty, PageHeader, Stat, money } from "@/components/dashbo
 import { GuestForm } from "./guest-form";
 
 /** Past visits (not cancelled) and upcoming confirmed bookings, soonest first. Runs at request time (dynamic page). */
-function splitVisits<B extends { starts_at: string; status: string }>(bookings: B[]) {
+function splitVisits<B extends { starts_at: string; status: string }>(bookings: B[], membership?: { tier_name: string; ends_at: string | null }) {
   const now = Date.now();
   return {
+    member: membership?.ends_at && Date.parse(membership.ends_at) > now ? membership : null,
     past: bookings.filter((b) => Date.parse(b.starts_at) < now && b.status !== "cancelled"),
     upcoming: bookings.filter((b) => Date.parse(b.starts_at) >= now && b.status === "confirmed").reverse(),
   };
@@ -25,7 +26,7 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
   if (!g) notFound();
   const tz = s.salon.timezone;
 
-  const [{ data: bookings }, { data: calls }] = await Promise.all([
+  const [{ data: bookings }, { data: calls }, { data: memberships }] = await Promise.all([
     s.supabase
       .from("bookings")
       .select("id, reference, starts_at, status, source, price, notes, salon_id, staff:staff_id (id, name), service:service_id (name)")
@@ -33,11 +34,13 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
       .order("starts_at", { ascending: false })
       .limit(50),
     s.supabase.from("calls").select("id, channel, created_at, outcome, summary").or(`customer_id.eq.${g.id},customer_phone.eq.${g.phone}`).order("created_at", { ascending: false }).limit(10),
+    // Memberships bought online, matched by mobile number across the brand.
+    s.supabase.from("membership_purchases").select("tier_name, ends_at").eq("phone", g.phone).eq("status", "active").order("ends_at", { ascending: false }).limit(1),
   ]);
   // A therapist can only open guests they treat.
   if (s.role === "stylist" && !(bookings ?? []).some((b) => b.staff?.id === s.staffId)) notFound();
 
-  const { past, upcoming } = splitVisits(bookings ?? []);
+  const { past, upcoming, member } = splitVisits(bookings ?? [], memberships?.[0]);
   const spend = past.filter((b) => b.status !== "no_show").reduce((t, b) => t + Number(b.price), 0);
   const fav = Object.entries(past.reduce<Record<string, number>>((m, b) => (b.staff?.name ? ((m[b.staff.name] = (m[b.staff.name] ?? 0) + 1), m) : m), {})).sort((a, b) => b[1] - a[1])[0];
   const studio = (sid: string) => s.salons.find((x) => x.id === sid)?.area ?? "";
@@ -47,7 +50,7 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
       <PageHeader
         eyebrow="Guest"
         title={g.name}
-        subtitle={`+${g.phone}${g.email ? ` · ${g.email}` : ""} · guest since ${formatInTimeZone(new Date(g.created_at), tz, "MMM yyyy")}`}
+        subtitle={`+${g.phone}${g.email ? ` · ${g.email}` : ""} · guest since ${formatInTimeZone(new Date(g.created_at), tz, "MMM yyyy")}${member ? ` · ${member.tier_name} member until ${formatInTimeZone(new Date(member.ends_at!), tz, "d MMM yyyy")}` : ""}`}
         action={s.role !== "stylist" ? <Link href={`/dashboard/bookings/new?phone=${g.phone}&name=${encodeURIComponent(g.name)}` as Route} className="inline-flex min-h-10 items-center rounded-full bg-charcoal px-4 text-sm text-ivory">Book again</Link> : null}
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { brand as brandParam } from "next/root-params";
 import { BrandImage } from "@/components/brand/brand-image";
 import { EnquiryForm } from "@/components/brand/enquiry-form";
+import { GiftCardCheckout } from "@/components/brand/gift-card-checkout";
+import { GIFT_CARD_VALIDITY_MONTHS } from "@/lib/payments/fulfil";
+import { isTestMode, razorpayConfigured } from "@/lib/payments/razorpay";
 import { JsonLd, PageIntro } from "@/components/brand/sections";
 import { ClipReveal } from "@/components/motion/clip-reveal";
 import { PageTransition } from "@/components/motion/page-transition";
@@ -20,10 +23,12 @@ export default async function GiftCardsPage() {
   const slug = await brandParam();
   const [brand, studios] = await Promise.all([getBrand(slug), getStudios(slug)]);
   if (!brand) return null;
+  const online = razorpayConfigured();
+  const studioOptions = studios.map((s) => ({ value: s.slug, label: `${s.area}, ${s.city}` }));
   return (
     <PageTransition>
       <JsonLd data={breadcrumbLd(brand, [["Home", "/"], ["Gift cards", "/gift-cards"]])} />
-      <PageIntro eyebrow="Gift cards" lines={["Give someone", "an hour of quiet."]} lead="Tell us who it is for and the studio will call you to personalise and complete it. Gift cards are also available at every Lumière studio." />
+      <PageIntro eyebrow="Gift cards" lines={["Give someone", "an hour of quiet."]} lead={online ? "Choose an amount, pay securely online, and share the card in a moment. Gift cards are also available at every Lumière studio." : "Tell us who it is for and the studio will call you to personalise and complete it. Gift cards are also available at every Lumière studio."} />
       <section className="container-page grid gap-12 md:grid-cols-12">
         <div className="md:col-span-5">
           <ClipReveal immediate className="aspect-[4/5]">
@@ -31,7 +36,9 @@ export default async function GiftCardsPage() {
           </ClipReveal>
           <ul className="mt-8 grid gap-3 text-stone">
             {/* Only facts from the brand policies; terms such as validity are confirmed by the studio when it calls. */}
-            {["Available at every Lumière studio", "Choose an amount or ask us to suggest a ritual", "The studio calls you to personalise and complete it"].map((l) => (
+            {(online
+              ? ["Valid at every Lumière studio for " + GIFT_CARD_VALIDITY_MONTHS + " months", "Use it across visits until the balance runs out", "Delivered instantly: share it by WhatsApp or link"]
+              : ["Available at every Lumière studio", "Choose an amount or ask us to suggest a ritual", "The studio calls you to personalise and complete it"]).map((l) => (
               <li key={l} className="flex gap-3">
                 <span aria-hidden="true" className="mt-2.5 size-1.5 shrink-0 rotate-45 bg-brass" />
                 {l}
@@ -40,6 +47,9 @@ export default async function GiftCardsPage() {
           </ul>
         </div>
         <div className="md:col-span-6 md:col-start-7">
+          {online ? (
+            <GiftCardCheckout brand={slug} brandName={brand.name} studios={studioOptions} validityMonths={GIFT_CARD_VALIDITY_MONTHS} testMode={isTestMode()} />
+          ) : (
           <EnquiryForm
             brand={slug}
             kind="gift"
@@ -51,9 +61,10 @@ export default async function GiftCardsPage() {
               { name: "sender_name", label: "Your name", type: "text", autoComplete: "name" },
               { name: "sender_phone", label: "Your mobile", type: "tel", autoComplete: "tel", inputMode: "tel" },
               { name: "sender_email", label: "Your email", type: "email", autoComplete: "email", optional: true },
-              { name: "studio", label: "Preferred studio", type: "select", optional: true, options: studios.map((s) => ({ value: s.slug, label: `${s.area}, ${s.city}` })) },
+              { name: "studio", label: "Preferred studio", type: "select", optional: true, options: studioOptions },
             ]}
           />
+          )}
         </div>
       </section>
     </PageTransition>

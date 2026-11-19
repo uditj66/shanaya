@@ -18,7 +18,7 @@ export function Button({ variant, className, ...p }: ComponentProps<"button"> & 
   return <button {...p} className={cx(btn(variant), className)} />;
 }
 
-// Generic so typed routes check every href (e.g. `/w/${slug}`) at the call site.
+// Generic so typed routes check every href (e.g. `/dashboard/bookings`) at the call site.
 export function ButtonLink<T extends string>({ variant, className, ...p }: ComponentProps<typeof Link<T>> & { variant?: BtnVariant }) {
   return <Link {...p} className={cx(btn(variant), className)} />;
 }

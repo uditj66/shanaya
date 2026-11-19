@@ -8,9 +8,12 @@ import { z } from "zod";
 import { getMenu, getPackages, getStudios, getTeam } from "@/lib/brand/data";
 import { hoursRows } from "@/lib/brand/hours";
 import { runTool, toolDefs, type ToolContext } from "@/lib/agent/tools";
+import { adminClient } from "@/lib/supabase/admin";
+import { depositRules, holdForDeposit } from "@/lib/payments/deposits";
 
 const BOOKING_TOOLS = [
   "check_availability",
+  "check_gift_card",
   "book_appointment",
   "guest_history",
   "find_appointments",
@@ -27,10 +30,51 @@ function bookingTools(t: ToolContext) {
     return tool({
       description: d.description,
       inputSchema: jsonSchema<Record<string, unknown>>(d.parameters as Parameters<typeof jsonSchema>[0]),
-      execute: async (args: Record<string, unknown>) => (await runTool(t, name, args)) as Record<string, unknown>,
+      execute: async (args: Record<string, unknown>) => {
+        const out = (await runTool(t, name, args)) as Record<string, unknown>;
+        // Members and gift card bookings are secured already: no deposit card for those.
+        return name === "book_appointment" && out.success && !out.no_deposit ? withDeposit(out, t) : out;
+      },
     });
   };
   return Object.fromEntries(BOOKING_TOOLS.map((n) => [n, make(n)])) as Record<BookingToolName, ReturnType<typeof make>>;
+}
+
+/**
+ * Website chat bookings take the brand's deposit: the booking is held and the chat shows a "Pay deposit" card.
+ * Phone bookings never pass through here, so they are unaffected.
+ */
+async function withDeposit(out: Record<string, unknown>, t: ToolContext): Promise<Record<string, unknown>> {
+  const rules = await depositRules(t.ctx.salon.brand_id);
+  if (!rules || !t.callId) return out;
+  const db = adminClient();
+  const { data: b } = await db
+    .from("bookings")
+    .select("id, deposit_status, deposit_amount, pay_token, hold_expires_at, customer:customer_id (name, phone, email)")
+    .eq("reference", String(out.reference ?? ""))
+    .eq("call_id", t.callId)
+    .maybeSingle();
+  if (!b) return out;
+  let token = b.pay_token;
+  let holdUntil = b.hold_expires_at;
+  let amount = Number(b.deposit_amount ?? rules.amount);
+  if (!b.deposit_status) {
+    try {
+      const h = await holdForDeposit(b.id, rules, { name: b.customer?.name ?? "", phone: b.customer?.phone ?? "", email: b.customer?.email ?? null });
+      token = h.token;
+      holdUntil = h.holdUntil;
+      amount = h.amount;
+    } catch (e) {
+      console.error("[concierge] deposit", e);
+      return out; // payments briefly unavailable: keep the booking rather than lose the guest
+    }
+  }
+  return {
+    ...out,
+    status: b.deposit_status === "paid" ? "confirmed" : "held until the deposit is paid",
+    deposit: { amount, token, hold_until: holdUntil, refund_hours: rules.refundHours, hold_minutes: rules.holdMinutes },
+    message: `The time is held for ${rules.holdMinutes} minutes. The guest confirms it by paying the ₹${amount} deposit with the button on the booking card; it comes off the bill at the studio and is refunded in full if she cancels at least ${rules.refundHours} hours before.`,
+  };
 }
 
 export function conciergeTools(brand: string, t: ToolContext) {
@@ -52,7 +96,7 @@ export function conciergeTools(brand: string, t: ToolContext) {
             return null;
           })
           .filter((c) => c !== null);
-        return cards.length ? { cards } : { error: "Unknown codes. Use codes from the menu." };
+        return cards.length ? { cards } : { error: "Unknown codes. Retry with [codes] from the menu (internal: never mention codes to the guest)." };
       },
     }),
 
