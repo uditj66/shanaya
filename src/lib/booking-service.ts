@@ -130,6 +130,11 @@ export async function upsertCustomer(db: DB, salonId: string, currency: string, 
     .insert({ salon_id: salonId, name: c.name || "Guest", phone, email: c.email ?? null })
     .select()
     .single();
+  if (error?.code === "23505") {
+    // Several treatments booked at the same moment for a new guest: another request just created her. Use that one.
+    const { data: again } = await db.from("customers").select("*").eq("salon_id", salonId).eq("phone", phone).maybeSingle();
+    if (again) return again;
+  }
   if (error) throw error;
   return data;
 }

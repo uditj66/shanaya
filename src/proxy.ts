@@ -78,5 +78,5 @@ async function staffGate(request: NextRequest, pathname: string) {
 
 export const config = {
   // Everything except API routes, build assets, public media and the embeddable widget script.
-  matcher: ["/((?!api|_next/static|_next/image|images|videos|widget\\.js|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|webp|avif|mp4|webm|woff2?)$).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|images|videos|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|webp|avif|mp4|webm|woff2?)$).*)"],
 };

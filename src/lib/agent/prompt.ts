@@ -6,6 +6,7 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { displayName, type SalonContext } from "./context";
 import { addDays, todayIn } from "../time";
+import { hoursRows, type Hours } from "../brand/hours";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const money = (amount: number, currency: string) =>
@@ -103,7 +104,7 @@ export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string |
 
   // Branch directory, grouped by city (entry branch marked).
   // Placeholder branches (not yet verified) never expose an address or phone number to guests.
-  const all = [{ id: salon.id, city: salon.city, area: salon.area, address: salon.address, phone: salon.phone, name: salon.name, is_placeholder: salon.is_placeholder }, ...branches];
+  const all = [{ id: salon.id, city: salon.city, area: salon.area, address: salon.address, phone: salon.phone, name: salon.name, is_placeholder: salon.is_placeholder, business_hours: salon.business_hours }, ...branches];
   const where = (b: (typeof all)[number]) =>
     b.is_placeholder ? `${b.area ?? b.name}, ${b.city ?? ""} (exact address and phone are shared by the studio on confirmation)` : `${b.address ?? ""}${b.phone ? `, ${b.phone}` : ""}`;
   const cities = [...new Set(all.map((b) => b.city ?? "Other"))];
@@ -120,7 +121,7 @@ export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string |
           .filter((b) => (b.city ?? "Other") === c)
           .map((b) => {
             const team = teamOf(b.id);
-            return `- ${b.area ?? b.name} [branch_id: ${b.id}]${b.id === salon.id ? " (the line she reached)" : ""}: ${where(b)}${team ? `\n  Team: ${team}` : ""}`;
+            return `- ${b.area ?? b.name} [branch_id: ${b.id}]${b.id === salon.id ? " (the line she reached)" : ""}: ${where(b)}\n  Hours: ${hoursLine(b.business_hours as Hours)}${team ? `\n  Team: ${team}` : ""}`;
           })
           .join("\n"),
     )
@@ -158,7 +159,9 @@ export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string |
 - The [codes] in this knowledge (FAC003, PKG002, branch ids) are for tools only. Never say or write a code to the guest, and never mention "codes", "the menu system", "the knowledge", "tools", "the site" or how you work inside. Guests only ever hear treatment names.
 - Only the treatments, packages and prices listed below exist. Quote a price exactly as listed for that treatment and never mix up two treatments' prices. Never invent a version that isn't listed (no "advanced", "premium" or "deluxe" variants). If she asks for something we don't offer, say warmly what we do offer that is closest, by name.
 - If you notice you said something wrong, correct it simply (for example: sorry, I misspoke, the HydraFacial is ₹3,999) and carry on. Never invent a reason to cover it.
-- Several treatments in one visit: you plan it. Check times so they follow one another at the same studio (and the same day if she wants), read the whole plan back once, and after her yes book each one. Never ask her to book them "one at a time" or to work out the order herself.
+- Answer exactly what she asked, first and plainly, before anything else. Read it the way Indian guests speak: "when are you off", "which day is your off", "holiday" mean which day the studio is closed, so answer from that branch's Hours line, e.g. "We're open all seven days, there's no weekly off." Only then, lightly, offer the next step.
+- Hours: each branch's own Hours line in the Branch directory is the truth for that branch; never assume one branch's hours for another.
+- Several treatments in one visit: you plan it. Check times so they follow one another at the same studio (and the same day if she wants), read the whole plan back once, and after her yes book them ONE AFTER ANOTHER, in time order: call book_appointment for the first, wait for its result, then the next (never several at the same moment). If one fails, tell her exactly which ones are booked and which are not. Never ask her to book them "one at a time" or to work out the order herself. When she changes a time, keep the rest of the plan unless she asks, check the new time with check_availability, and recalculate the times that follow.
 
 # Today (timezone ${tz}; now ${formatInTimeZone(now, tz, "HH:mm")})
 ${calendar}
@@ -184,6 +187,14 @@ ${salon.agent_instructions || "None."}
 ${conversationNote(opts.mode ?? "chat", opts.callerPhone)}`;
 }
 
+/** "Mon – Sat 10:00–21:00, Sunday 10:00–20:00. Open all 7 days (no weekly off)." or "... Closed on Monday." */
+function hoursLine(hours: Hours) {
+  const rows = hoursRows(hours ?? {});
+  const closed = rows.filter((r) => r.hours === "Closed").map((r) => r.days);
+  const open = rows.filter((r) => r.hours !== "Closed").map((r) => `${r.days} ${r.hours}`).join(", ");
+  return `${open || "no regular hours"}. ${closed.length ? `Closed (weekly off): ${closed.join(", ")}.` : "Open all 7 days (no weekly off)."}`;
+}
+
 /** Gift cards and memberships when booking: lives in the live knowledge so it reaches the saved Vapi prompt too. */
 function perksSection(ctx: SalonContext, mode: ConversationMode) {
   const tiers = ctx.memberships ?? [];
@@ -203,7 +214,7 @@ function perksSection(ctx: SalonContext, mode: ConversationMode) {
   return `
 # Gift cards and memberships when booking
 - Before reading the booking back, ask once, lightly: "Will you be using a gift card or a ${brandName(ctx)} membership today?"
-${ctx.giftCards ? `- Gift card: take the code${voice ? ", read it back character by character" : ""}, call check_gift_card, tell her the balance, then pass it as gift_card_code to book_appointment. It pays the treatment price (after any member discount) up to the balance; anything over is paid at the studio. No deposit is needed. If she cancels with enough notice the amount goes back on the card.\n` : ""}${
+${ctx.giftCards ? `- Gift card: take the code${voice ? ", read it back character by character" : ""}, call check_gift_card, tell her the balance, then pass it as gift_card_code to book_appointment. It pays the treatment price (after any member discount) up to the balance; anything over is paid at the studio. No deposit is needed. If she cancels with enough notice the amount goes back on the card. Once she has given a valid code it stays part of the plan: pass the same gift_card_code to EVERY treatment you book for her (the balance is used treatment by treatment; the rest is paid at the studio) and mention it when you read the plan back. If the plan or total changes, say how much the card now covers. Only drop it if she clearly says she doesn't want to use it, and never offer a quick reply that drops it.\n` : ""}${
     tiers.length
       ? `- Membership: there is no code. Benefits are applied automatically by book_appointment from the mobile number on her membership${voice ? " (on a phone call, the caller's number)" : ""}, so make sure you book with that number. Never promise a member price before the booking: tell her what book_appointment returns (payment_note). If she says she is a member but no member benefit comes back, say kindly that the studio will check her membership at the visit.\n- Tiers:\n${tierLines}\n`
       : ""

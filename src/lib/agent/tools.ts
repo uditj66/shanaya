@@ -150,6 +150,16 @@ function appointmentView(
   };
 }
 
+/** Readable text for any thrown value (database errors are plain objects, which would log as "[object Object]"). */
+function errorText(e: unknown) {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object") {
+    const o = e as { message?: unknown; code?: unknown; details?: unknown };
+    return [o.code, o.message, o.details].filter(Boolean).join(": ") || JSON.stringify(e).slice(0, 300);
+  }
+  return String(e);
+}
+
 /** What a booking's membership benefit and gift card mean, in words Shanaya can pass on. */
 function paymentView(p: BookingPayment | undefined, noDeposit: boolean, currency: string) {
   if (!p) return { no_deposit: noDeposit };
@@ -403,7 +413,7 @@ export async function runTool(t: ToolContext, name: string, args: Args) {
       };
     }
     console.error(`[tool ${name}]`, e);
-    await logEvent(t.ctx.salon.id, "tool_error", { tool: name, channel: t.channel, message: e instanceof Error ? e.message : String(e) });
+    await logEvent(t.ctx.salon.id, "tool_error", { tool: name, channel: t.channel, message: errorText(e) });
     return { error: "Something went wrong on our side. Apologise briefly and offer to take a message for the team." };
   }
 }

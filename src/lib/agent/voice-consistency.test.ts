@@ -20,7 +20,7 @@ const ctx: SalonContext = {
   services: [],
   staff: [{ id: "a", name: "Ananya", title: null }],
   packages: [],
-  branches: [{ id: "s2", name: "Lumière · Juhu", slug: "lumiere-mumbai-juhu", city: "Mumbai", area: "Juhu", address: "Juhu Tara Road", phone: "+91 22 2600 1111", is_placeholder: false }],
+  branches: [{ id: "s2", name: "Lumière · Juhu", slug: "lumiere-mumbai-juhu", city: "Mumbai", area: "Juhu", address: "Juhu Tara Road", phone: "+91 22 2600 1111", is_placeholder: false, business_hours: { "0": [], "1": [["11:00", "20:00"]], "2": [["11:00", "20:00"]], "3": [["11:00", "20:00"]], "4": [["11:00", "20:00"]], "5": [["11:00", "20:00"]], "6": [["11:00", "20:00"]] } }],
 };
 const NOW = new Date("2026-11-18T06:30:00Z");
 // "This conversation" (phone vs website) is the only intended difference between channels
@@ -68,6 +68,14 @@ describe("saved Vapi assistant (managed in the Vapi dashboard)", () => {
   it("persona asks for city and branch before booking", () => {
     expect(personaPrompt("voice")).toMatch(/which city and which area/i);
     expect(personaPrompt("chat")).toMatch(/which city and which area/i);
+  });
+});
+
+describe("opening hours", () => {
+  it("lists each branch's own hours and says plainly which day it is closed", () => {
+    const k = buildKnowledge(ctx, { now: NOW });
+    expect(k).toContain("Open all 7 days (no weekly off)"); // Bandra: open every day
+    expect(k).toContain("Juhu Tara Road, +91 22 2600 1111\n  Hours: Mon – Sat 11:00–20:00. Closed (weekly off): Sunday.");
   });
 });
 

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Tables } from "../database.types";
 
-export type SisterBranch = Pick<Tables<"salons">, "id" | "name" | "slug" | "city" | "area" | "address" | "phone" | "is_placeholder">;
+export type SisterBranch = Pick<Tables<"salons">, "id" | "name" | "slug" | "city" | "area" | "address" | "phone" | "is_placeholder" | "business_hours">;
 
 export type SalonContext = {
   salon: Tables<"salons">;
@@ -26,7 +26,7 @@ export async function loadSalonContext(db: SupabaseClient<Database>, salonId: st
   const { data: branches } = salon.brand_name
     ? await db
         .from("salons")
-        .select("id, name, slug, city, area, address, phone, is_placeholder")
+        .select("id, name, slug, city, area, address, phone, is_placeholder, business_hours")
         .eq("brand_name", salon.brand_name)
         .neq("id", salon.id)
         .order("city")
