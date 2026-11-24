@@ -5,6 +5,7 @@ import { requireArea } from "@/lib/session";
 import { adminClient } from "@/lib/supabase/admin";
 import { refundPayment as razorpayRefund } from "@/lib/payments/razorpay";
 import { benefitBookings, benefitsUsedValue } from "@/lib/dashboard/member-benefits";
+import { depositRefundBlock } from "@/lib/payments/deposit-refund";
 
 export type RefundResult = { ok: true } | { ok: false; error: string };
 export type RefundPreview =
@@ -30,9 +31,20 @@ async function membershipRefund(purchaseId: string, paidPaise: number) {
 }
 
 /** What a refund would give back, shown to the manager before they confirm. */
+/** Why this deposit's booking can't be refunded right now (null when the deposit is still held). */
+async function depositBlock(bookingId: string | null, tz: string) {
+  if (!bookingId) return depositRefundBlock(null, tz);
+  const { data: b } = await adminClient()
+    .from("bookings")
+    .select("reference, deposit_status, starts_at, refund_by, created_at, updated_at, status")
+    .eq("id", bookingId)
+    .maybeSingle();
+  return depositRefundBlock(b, tz);
+}
+
 export async function previewRefund(paymentId: string): Promise<RefundPreview> {
   if (!isId(paymentId)) return { ok: false, error: "Payment not found." };
-  const { p } = await ownPayment(paymentId);
+  const { s, p } = await ownPayment(paymentId);
   if (!p || p.status !== "paid") return { ok: false, error: "Only completed payments can be refunded." };
   if (p.kind === "membership" && p.ref_id) {
     const { usedPaise, refundPaise } = await membershipRefund(p.ref_id, p.amount);
@@ -40,6 +52,11 @@ export async function previewRefund(paymentId: string): Promise<RefundPreview> {
       ok: true, kind: p.kind, paid: p.amount, refund: refundPaise, used: usedPaise,
       note: usedPaise > 0 ? "Benefits already used are taken off the refund. Member benefits on upcoming bookings are removed." : "No benefits used yet. Member benefits on upcoming bookings are removed.",
     };
+  }
+  // A deposit can only go back while it's still held: say why not before the manager presses anything.
+  if (p.kind === "deposit") {
+    const why = await depositBlock(p.ref_id, s.salon.timezone);
+    if (why) return { ok: false, error: why };
   }
   return { ok: true, kind: p.kind, paid: p.amount, refund: p.amount };
 }
@@ -107,7 +124,7 @@ export async function refundOnlinePayment(paymentId: string): Promise<RefundResu
   } else if (p.kind === "deposit" && p.ref_id) {
     // Claim the deposit first: only one that is still held can go back (never one already taken off a bill).
     const { data: held } = await db.from("bookings").update({ deposit_status: "refunded" }).eq("id", p.ref_id).eq("deposit_status", "paid").select("id").maybeSingle();
-    if (!held) return { ok: false, error: "This deposit has already been used on a bill, kept, or refunded, so it can't be refunded here." };
+    if (!held) return { ok: false, error: (await depositBlock(p.ref_id, s.salon.timezone)) ?? "This deposit is no longer held, so it can't be refunded here." };
     try {
       await razorpayRefund(p.razorpay_payment_id, undefined, { reason: "deposit refund", by: s.user.email ?? "" });
     } catch (e) {
