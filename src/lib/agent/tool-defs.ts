@@ -68,12 +68,13 @@ export const toolDefs: ToolDef[] = [
   {
     name: "find_appointments",
     description:
-      "Find the guest's upcoming appointments at any branch of the brand. On phone calls the caller's number is enough; on the website (no caller ID) a booking reference plus mobile number is required.",
+      "Find the guest's upcoming appointments at any branch of the brand (also those booked for someone else on her number). On phone calls the caller's number is enough; on the website pass her mobile number and the first name the booking is under.",
     parameters: {
       type: "object",
       properties: {
         phone: { type: "string", description: "Her mobile number. Optional only on phone calls with caller ID" },
-        reference: { type: "string", description: "Booking reference (required on the website)" },
+        name: { type: "string", description: "Website: the first name the booking is under (hers, or the person she booked for)" },
+        reference: { type: "string", description: "Optional: a booking reference, only if she happens to have one. Never insist on it" },
       },
       required: [],
     },
