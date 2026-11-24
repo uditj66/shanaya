@@ -71,7 +71,7 @@ describe("guest memory", () => {
       "Guest: book my sister-in-law Empla, she has a client meeting on Thursday",
     );
     expect(p).toContain("G1: the CALLER (Ritika, Sunita)");
-    expect(p).toContain("G2: booked on this call: Empla");
+    expect(p).toContain("G2: a guest whose number was booked on this call; people on this number: Empla");
     expect(p).toContain("[preference] Prefers evenings");
     expect(p).not.toMatch(/9800000001|9800000002/);
   });
@@ -80,5 +80,17 @@ describe("guest memory", () => {
     const lines = memoryLines([note("Sister's wedding", "2026-11-01", { kind: "occasion", until: "2026-11-10" }), note("Didn't like the steam room", "2026-11-01", { kind: "dislike" })], "Asia/Kolkata", TODAY);
     expect(lines[0]).toBe("- Occasion (was Tue 10 Nov 2026): Sister's wedding");
     expect(lines[1]).toBe("- Didn't enjoy: Didn't like the steam room");
+  });
+});
+
+describe("shared numbers", () => {
+  it("tells the note-taker everyone on a number, owner first, so notes about others get labelled (from a real call)", () => {
+    // an unverified website caller booked her sister-in-law Sakshi on Sudha's number
+    const onFile = new Map([["919800000001", ["Sudha"]]]);
+    expect(guestsOnCall(null, [{ phone: "919800000001", name: "Sakshi", salonId: "indiranagar" }], onFile)).toEqual([
+      { phone: "919800000001", salonId: "indiranagar", names: ["Sudha", "Sakshi"], isCaller: false },
+    ]);
+    const p = memoryPrompt([{ phone: "919800000001", salonId: "a", names: ["Sudha", "Sakshi"], isCaller: false, existing: [] }], "2026-11-24", "…");
+    expect(p).toContain("people on this number: Sudha, Sakshi (they share it; Sudha is the main guest)");
   });
 });

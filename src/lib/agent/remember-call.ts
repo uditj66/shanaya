@@ -37,13 +37,18 @@ export async function rememberCall(info: CallInfo) {
     // Who this call was about: the caller, and everyone booked on it.
     const phone = await callerPhone(info, salon.currency);
     const [{ data: booked }, { data: callerRows }] = await Promise.all([
-      db.from("bookings").select("salon_id, customer:customer_id (name, phone)").eq("call_id", info.callId).neq("status", "cancelled"),
+      db.from("bookings").select("salon_id, guest_name, customer:customer_id (name, phone)").eq("call_id", info.callId).neq("status", "cancelled"),
       phone ? db.from("customers").select("name").in("salon_id", branchIds).eq("phone", phone).order("created_at", { ascending: false }).limit(1) : Promise.resolve({ data: [] as { name: string }[] }),
     ]);
-    const guests = guestsOnCall(
-      phone && phone.length >= 10 ? { phone, name: callerRows?.[0]?.name ?? null, salonId: info.salonId } : null,
-      (booked ?? []).flatMap((b) => (b.customer ? [{ phone: b.customer.phone, name: b.customer.name, salonId: b.salon_id }] : [])),
-    );
+    const bookedGuests = (booked ?? []).flatMap((b) => (b.customer ? [{ phone: b.customer.phone, name: b.guest_name ?? b.customer.name, salonId: b.salon_id }] : []));
+    // Everyone already known on these numbers, oldest first (the number's owner first): a family often shares one.
+    const phones = [...new Set([phone, ...bookedGuests.map((b) => b.phone)].filter((p): p is string => !!p && p.length >= 10))];
+    const { data: known } = phones.length
+      ? await db.from("customers").select("name, phone, created_at").in("salon_id", branchIds).in("phone", phones).order("created_at")
+      : { data: [] as { name: string; phone: string }[] };
+    const onFile = new Map<string, string[]>();
+    for (const k of known ?? []) onFile.set(k.phone, [...(onFile.get(k.phone) ?? []), k.name]);
+    const guests = guestsOnCall(phone && phone.length >= 10 ? { phone, name: callerRows?.[0]?.name ?? null, salonId: info.salonId } : null, bookedGuests, onFile);
     if (!guests.length) return;
 
     // What we already remember about each (one memory per guest across the brand); skip anyone who opted out.

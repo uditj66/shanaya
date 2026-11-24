@@ -121,6 +121,24 @@ async function webVerified(t: ToolContext, a: Args, phone: string) {
   return true;
 }
 
+/**
+ * What Shanaya remembers about a guest whose identity is proven (caller ID, or a booking reference matching her
+ * number), so any lookup can recognise her, not only guest_history. Empty when there's nothing remembered.
+ */
+async function recognised(t: ToolContext, phone: string) {
+  const profile = await loadReturningGuest(t.ctx, phone).catch(() => null);
+  if (!profile) return {};
+  const tz = t.ctx.salon.timezone;
+  const remembered = profile.notes.length ? memoryLines(profile.notes, tz, todayIn(tz)) : [];
+  if (!remembered.length && !profile.favourite) return {};
+  return {
+    remembered,
+    favourite_therapist: profile.favourite ? `${profile.favourite.name} at ${profile.favourite.branch}` : null,
+    how_to_use:
+      "She is a returning guest. Weave what you remember in naturally and briefly once it fits (offer the room, the therapist, ask about an occasion); never read it out or say how you know. A note that starts with a name (\"Sakshi: …\") is about that person, who shares her number.",
+  };
+}
+
 const APPOINTMENT_FIELDS =
   "reference, starts_at, ends_at, status, price, deposit_amount, deposit_status, gift_card_amount, gift_card_state, member_benefit, member_discount, refund_by, salon:salon_id (brand_name, area, name, timezone, currency), staff:staff_id (name), service:service_id (name)" as const;
 
@@ -398,7 +416,9 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
       if (!str(a.reference)) return { error: "For privacy, ask for her booking reference (from her confirmation) as well as her mobile number." };
       const owned = await ownedBooking(t, a.reference, phone);
       const { data } = await adminClient().from("bookings").select(APPOINTMENT_FIELDS).eq("id", owned.id);
-      return { guest: owned.customer?.name, appointments: (data ?? []).map((b) => appointmentView(t, b)) };
+      // A booking reference that matches her number proves who she is, just like guest_history: recognise her.
+      await markVerifiedPhone(t.callId, phone).catch(() => {});
+      return { guest: owned.customer?.name, appointments: (data ?? []).map((b) => appointmentView(t, b)), ...(await recognised(t, phone)) };
     }
     const db = adminClient();
     const { data: customers } = await db.from("customers").select("id, name, salon_id").in("salon_id", brandIds(t)).eq("phone", phone);
@@ -411,7 +431,7 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
       .gte("starts_at", new Date().toISOString())
       .order("starts_at")
       .limit(5);
-    return { guest: customers[0].name, appointments: (data ?? []).map((b) => appointmentView(t, b)) };
+    return { guest: customers[0].name, appointments: (data ?? []).map((b) => appointmentView(t, b)), ...(await recognised(t, phone)) };
   },
 
   async reschedule_appointment(t, a) {

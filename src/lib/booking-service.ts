@@ -117,12 +117,30 @@ export async function nextAvailableDate(db: DB, q: Omit<SlotQuery, "date"> & { f
   return null;
 }
 
+/** "Guest", "Unknown", blank: names that stand in until we learn the real one. */
+export const isPlaceholderName = (n: string | null | undefined) => !n?.trim() || /^(guest|unknown|customer|caller|na|n\/a)$/i.test(n.trim());
+
+/**
+ * Who a booking is for, when it isn't the guest on file for that number (a sister-in-law booked on Sudha's phone).
+ * Null when it's the guest herself (same name, ignoring case and extra spaces).
+ */
+export function bookedFor(requested: string | null | undefined, onFile: string) {
+  const r = requested?.replace(/\s+/g, " ").trim() ?? "";
+  if (!r || isPlaceholderName(r)) return null;
+  return r.toLowerCase() === onFile.replace(/\s+/g, " ").trim().toLowerCase() ? null : r.slice(0, 80);
+}
+
 export async function upsertCustomer(db: DB, salonId: string, currency: string, c: { name: string; phone: string; email?: string | null }) {
   const phone = normalizePhone(c.phone, countryCodeFor(currency));
   if (phone.length < 10) throw new BookingError("invalid", "A valid phone number is required");
   const { data: existing } = await db.from("customers").select("*").eq("salon_id", salonId).eq("phone", phone).maybeSingle();
   if (existing) {
-    if (c.name && c.name !== existing.name) await db.from("customers").update({ name: c.name }).eq("id", existing.id);
+    // Families share phones: a booking for someone else on this number must NOT rename the guest (it used to turn
+    // Sudha into "Sakshi"). Only a placeholder name is replaced; otherwise the booking records who it's for.
+    if (c.name && isPlaceholderName(existing.name) && !isPlaceholderName(c.name)) {
+      await db.from("customers").update({ name: c.name }).eq("id", existing.id);
+      return { ...existing, name: c.name };
+    }
     return existing;
   }
   const { data, error } = await db
@@ -181,11 +199,12 @@ export async function createBooking(db: DB, input: CreateBookingInput) {
         blocked_until: blockedUntil.toISOString(),
         price: service.price,
         notes: input.notes ?? "",
+        guest_name: bookedFor(input.customer.name, customer.name),
         source: input.source,
         call_id: input.callId ?? null,
         created_by: input.createdBy ?? null,
       })
-      .select("id, reference, starts_at, staff:staff_id (name), service:service_id (name)")
+      .select("id, reference, starts_at, guest_name, staff:staff_id (name), service:service_id (name)")
       .single();
     if (!error) return { booking: data, customer, salon, service };
     if (error.code !== EXCLUSION_VIOLATION) throw error;

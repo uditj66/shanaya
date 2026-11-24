@@ -33,7 +33,7 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
   const [{ data: bookings }, { data: memberships }, { data: memoryRows }] = await Promise.all([
     s.supabase
       .from("bookings")
-      .select("id, reference, starts_at, status, source, price, notes, salon_id, call_id, staff:staff_id (id, name), service:service_id (name)")
+      .select("id, reference, starts_at, status, source, price, notes, salon_id, call_id, guest_name, staff:staff_id (id, name), service:service_id (name)")
       .eq("customer_id", g.id)
       .order("starts_at", { ascending: false })
       .limit(50),
@@ -96,7 +96,10 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
               {bookings.map((b) => (
                 <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
                   <div className="min-w-0">
-                    <p className="font-medium">{b.service?.name}</p>
+                    <p className="font-medium">
+                      {b.service?.name}
+                      {b.guest_name && <span className="font-normal text-muted-foreground"> · for {b.guest_name}</span>}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {formatInTimeZone(new Date(b.starts_at), tz, "EEE d MMM yyyy, h:mm a")}
                       {b.staff?.name ? ` · ${b.staff.name}` : ""}
