@@ -36,7 +36,7 @@ const Body = z.object({
 });
 
 /** takeover: a team member is answering this chat from the dashboard inbox, so the AI stays quiet. */
-type State = { ui?: UIMessage[]; turns?: number; takeover?: { by: string; at: string } | null };
+type State = { ui?: UIMessage[]; turns?: number; takeover?: { by: string; at: string } | null; verified_phone?: string };
 
 /** Resolve the brand, the entry branch (studio page → that studio, else the flagship) and a trusted page context. */
 async function resolve(brand: string, page?: z.infer<typeof Body>["page"]) {
@@ -141,7 +141,8 @@ export async function POST(req: NextRequest, { params }: RouteContext<"/api/conc
         await db
           .from("calls")
           .update({
-            agent_state: { ...state, takeover: fresh.takeover ?? null, ui: [...messages, ...staffLines].slice(-60), turns: (state.turns ?? 0) + 1 } as unknown as Json,
+            // verified_phone may have been set by guest_history during this reply: keep it
+            agent_state: { ...state, verified_phone: fresh.verified_phone ?? state.verified_phone, takeover: fresh.takeover ?? null, ui: [...messages, ...staffLines].slice(-60), turns: (state.turns ?? 0) + 1 } as unknown as Json,
             transcript: `${call.transcript ?? ""}\nGuest: ${textOf(message as UIMessage)}${reply ? `\nAI: ${reply}` : ""}`.trim(),
             ended_at: new Date().toISOString(),
           })

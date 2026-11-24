@@ -8,6 +8,7 @@ import { displayName, type SalonContext } from "./context";
 import { addDays, todayIn } from "../time";
 import { hoursRows, type Hours } from "../brand/hours";
 import { GIFT_CARD_VALIDITY_MONTHS, MEMBER_FREE_HOLDS } from "../payments/rules";
+import { returningGuestSection, type ReturningGuest } from "./returning-guest";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const money = (amount: number, currency: string) =>
@@ -58,7 +59,7 @@ ${medium}
 ## Her favourite therapist, doctor or beautician
 - Once the treatment and branch are clear, always ask warmly whether she has a favourite therapist, doctor or beautician she'd like ("Do you have someone you love seeing, or shall I find whoever is free?").
 - If she names someone, pass that name as therapist_name to check_availability at that branch. Use only names from that branch's Team in the Branch directory.
-- If she says "the same as last time", or likes someone but can't remember the name, use guest_history with her number${voice ? " (on a website call, also ask for any past booking reference: history is only shared online with one)" : " and any past booking reference (for privacy, history is only shared online with a reference)"}. Name that person exactly, with the branch and treatment ("Last time Meera did your HydraFacial at Bandra West. Shall I book her again?"), then check that person's availability.
+- If she says "the same as last time", or likes someone but can't remember the name, use guest_history with her number${voice ? " (on a website call, also pass her first name)" : " and her first name"}. Name that person exactly, with the branch and treatment ("Last time Meera did your HydraFacial at Bandra West. Shall I book her again?"), then check that person's availability.
 - If that person isn't free when she wants, offer their next free times first, then another senior team member at the same branch.
 - If she has no preference, any available specialist is fine; mention who it will be when you offer the time.
 
@@ -89,7 +90,7 @@ Dates in tool calls are YYYY-MM-DD and times HH:MM (24-hour). Use the calendar i
 }
 
 /** Live facts for this call, injected into the prompt as {{knowledge}}. */
-export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string | null; now?: Date; mode?: ConversationMode } = {}) {
+export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string | null; now?: Date; mode?: ConversationMode; guest?: ReturningGuest | null } = {}) {
   const { salon, services, packages, branches } = ctx;
   const tz = salon.timezone;
   const now = opts.now ?? new Date();
@@ -161,6 +162,7 @@ export function buildKnowledge(ctx: SalonContext, opts: { callerPhone?: string |
 - Only the treatments, packages and prices listed below exist. Quote a price exactly as listed for that treatment and never mix up two treatments' prices. Never invent a version that isn't listed (no "advanced", "premium" or "deluxe" variants). If she asks for something we don't offer, say warmly what we do offer that is closest, by name.
 - If you notice you said something wrong, correct it simply (for example: sorry, I misspoke, the HydraFacial is ₹3,999) and carry on. Never invent a reason to cover it.
 - Answer exactly what she asked, first and plainly, before anything else. Read it the way Indian guests speak: "when are you off", "which day is your off", "holiday" mean which day the studio is closed, so answer from that branch's Hours line, e.g. "We're open all seven days, there's no weekly off." Only then, lightly, offer the next step.
+- If she asks you not to remember her, to forget what she told you, or to delete her data: reassure her, take her name and mobile number and use request_callback with the reason "Privacy: please stop remembering me and delete my notes". Don't refer back to anything remembered for the rest of the conversation.
 - Hours: each branch's own Hours line in the Branch directory is the truth for that branch; never assume one branch's hours for another.
 - Several treatments in one visit: you plan it. Check times so they follow one another at the same studio (and the same day if she wants), read the whole plan back once, and after her yes book them ONE AFTER ANOTHER, in time order: call book_appointment for the first, wait for its result, then the next (never several at the same moment). If one fails, tell her exactly which ones are booked and which are not. Never ask her to book them "one at a time" or to work out the order herself. When she changes a time, keep the rest of the plan unless she asks, check the new time with check_availability, and recalculate the times that follow.
 
@@ -186,7 +188,10 @@ ${salon.policies || "None."}
 ${salon.agent_instructions || "None."}
 
 # This conversation
-${conversationNote(opts.mode ?? "chat", opts.callerPhone)}`;
+${conversationNote(opts.mode ?? "chat", opts.callerPhone)}${
+    // only on phone calls: caller ID is the one thing that identifies a guest without a booking reference
+    opts.mode === "phone" && opts.callerPhone && opts.guest ? `\n${returningGuestSection(opts.guest, tz, now)}` : ""
+  }`;
 }
 
 /** "Mon – Sat 10:00–21:00, Sunday 10:00–20:00. Open all 7 days (no weekly off)." or "... Closed on Monday." */
@@ -275,6 +280,14 @@ const CLOSING_RULE = `
 - Never end the call while she is still speaking, while a tool is running, before you have given her the booking reference and what she pays at the studio, or in the middle of a transfer_to_team.
 - If she asks for something else, help her, then ask again once that is done.`;
 
+/** Website guests are recognised by mobile number + first name (no booking reference needed for history). */
+const WEB_RECOGNITION = `
+# Recognising returning guests on the website (this replaces any older rule that visit history needs a booking reference)
+- Early in the conversation, once she wants to book or mentions she has been before, ask for her first name and mobile number, then call guest_history with both.
+- If it returns her visits, welcome her back warmly by first name and use what it gives naturally and briefly (favourite therapist, usual branch, last treatment, upcoming visit, membership), like a front desk that remembers her. Never read it out or say how you know.
+- If it finds nothing, simply carry on as with a new guest. Never say the number or name wasn't found or didn't match, and never hint at someone else's visits.
+- Changing or cancelling an existing booking online still needs its booking reference plus her mobile number (find_appointments); it's in her confirmation message.`;
+
 /** Tells Shanaya which kind of conversation this is, so phone-only abilities aren't offered on the website. */
 function conversationNote(mode: ConversationMode, callerPhone?: string | null) {
   if (mode === "phone") {
@@ -282,9 +295,9 @@ function conversationNote(mode: ConversationMode, callerPhone?: string | null) {
     return `Phone call.${id} transfer_to_team is available if she needs a person.\n${CLOSING_RULE}`;
   }
   if (mode === "web-voice") {
-    return `Voice call from the website. There is no caller ID: ask for her mobile number. Bookings and visit history are only shared with a booking reference plus mobile number. transfer_to_team is NOT available: use request_callback instead.\n${CLOSING_RULE}`;
+    return `Voice call from the website. There is no caller ID: ask for her mobile number. transfer_to_team is NOT available: use request_callback instead.\n${WEB_RECOGNITION}\n${CLOSING_RULE}`;
   }
-  return "Typed chat on the website. There is no caller ID: ask for her mobile number. Bookings and visit history are only shared with a booking reference plus mobile number.";
+  return `Typed chat on the website. There is no caller ID: ask for her mobile number.\n${WEB_RECOGNITION}`;
 }
 
 /** Full prompt for typed chat (calls use the saved Vapi assistant's prompt plus {{knowledge}}). */

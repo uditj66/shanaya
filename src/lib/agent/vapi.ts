@@ -5,6 +5,8 @@ import type { SalonContext } from "./context";
 import { brandName, buildKnowledge, personaPrompt, type ConversationMode } from "./prompt";
 import { toolDefs } from "./tool-defs";
 import { signSalon } from "./call-signature";
+import { returningGreeting, type ReturningGuest } from "./returning-guest";
+import { transcriberFor } from "./transcriber";
 
 export function appUrl() {
   return (process.env.PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -18,8 +20,30 @@ function serverConfig() {
   return server;
 }
 
+/**
+ * Said only if a tool is still running after a few seconds, so a slow lookup never sounds like a dropped call.
+ * (Shanaya already says her own short line before each tool, so there is deliberately no "request-start" message:
+ * the guest would hear both.)
+ */
+export const SLOW_TOOL_LINES: Record<string, string> = {
+  check_availability: "I'm just looking through the diary for you, one moment.",
+  book_appointment: "Nearly done, I'm just confirming that booking.",
+  reschedule_appointment: "Just a moment, I'm moving that for you.",
+  cancel_appointment: "One moment, I'm just taking care of that.",
+  find_appointments: "Just a second, I'm pulling up your appointments.",
+  guest_history: "One moment, I'm just looking at your past visits.",
+  check_gift_card: "Just checking the card for you.",
+  request_callback: "One moment, I'm just passing that to the team.",
+};
+const SLOW_TOOL_AFTER_MS = 3500;
+
 const functionTools = () =>
-  toolDefs.map((t) => ({ type: "function", async: false, function: { name: t.name, description: t.description, parameters: t.parameters } }));
+  toolDefs.map((t) => ({
+    type: "function",
+    async: false,
+    function: { name: t.name, description: t.description, parameters: t.parameters },
+    ...(SLOW_TOOL_LINES[t.name] ? { messages: [{ type: "request-response-delayed", timingMilliseconds: SLOW_TOOL_AFTER_MS, content: SLOW_TOOL_LINES[t.name] }] } : {}),
+  }));
 
 /** Dynamic transfer: Vapi asks our server (transfer-destination-request) for the branch's front-desk number. */
 const transferTool = () => ({
@@ -44,7 +68,8 @@ export const SERVER_MESSAGES = ["tool-calls", "end-of-call-report", "transfer-de
 
 /** Human-feel settings for the saved assistant. */
 const conversationSettings = {
-  transcriber: { provider: "deepgram", model: "nova-3", language: "en" },
+  // Every call overrides this with transcriberFor(ctx) (adds the brand's keyterms); kept in step for new assistants.
+  transcriber: { provider: "deepgram", model: "nova-3", language: "multi" },
   startSpeakingPlan: { smartEndpointingPlan: { provider: "livekit", waitFunction: "20 + 500 * sqrt(x) + 2500 * x^3" } },
   stopSpeakingPlan: { numWords: 0, voiceSeconds: 0.2, backoffSeconds: 1 },
   backgroundSound: "off",
@@ -84,15 +109,21 @@ export function savedAssistantDefinition() {
 export const escapeLiquid = (s: string) => s.replace(/\{\{/g, "{ {").replace(/\}\}/g, "} }").replace(/\{%/g, "{ %").replace(/%\}/g, "% }");
 
 /** What every call (phone or web) sends to Vapi for this branch's line. */
-export function vapiCallConfig(ctx: SalonContext, callerPhone: string | null, channel: VoiceChannel = "phone") {
+export function vapiCallConfig(ctx: SalonContext, callerPhone: string | null, channel: VoiceChannel = "phone", guest: ReturningGuest | null = null) {
   const assistantId = process.env.VAPI_ASSISTANT_ID;
   if (!assistantId) throw new Error("VAPI_ASSISTANT_ID is not set: create Shanaya once with `npm run vapi:assistant -- create --url <app url>`.");
   const mode: ConversationMode = channel === "phone" ? "phone" : "web-voice";
+  // Recognised phone callers get a "welcome back" greeting (website calls have no trustworthy caller ID).
+  const known = channel === "phone" && callerPhone ? guest : null;
+  const greeting = known ? returningGreeting(known, brandName(ctx), ctx.salon.agent_name || "Shanaya") : null;
   return {
     assistantId,
     assistantOverrides: {
+      ...(greeting ? { firstMessage: escapeLiquid(greeting) } : {}),
+      // Hears Hindi-English mixing, and listens for this brand's names (treatments, therapists, areas).
+      transcriber: transcriberFor(ctx),
       variableValues: {
-        knowledge: escapeLiquid(buildKnowledge(ctx, { callerPhone, mode })),
+        knowledge: escapeLiquid(buildKnowledge(ctx, { callerPhone, mode, guest: known })),
         brand_name: escapeLiquid(brandName(ctx)),
         agent_name: escapeLiquid(ctx.salon.agent_name || "Shanaya"),
         entry_branch: escapeLiquid(ctx.salon.area ?? ctx.salon.name),

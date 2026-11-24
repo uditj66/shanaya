@@ -342,6 +342,15 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["gift_cards"]["Insert"]>;
         Relationships: [];
       };
+      guest_memory: {
+        Row: { salon_id: string; phone: string; notes: Json; source_call_id: string | null; updated_at: string; opted_out: boolean };
+        Insert: { salon_id: string; phone: string; notes?: Json; source_call_id?: string | null; updated_at?: string; opted_out?: boolean };
+        Update: Partial<Database["public"]["Tables"]["guest_memory"]["Insert"]>;
+        Relationships: [
+          { foreignKeyName: "guest_memory_salon_id_fkey"; columns: ["salon_id"]; isOneToOne: false; referencedRelation: "salons"; referencedColumns: ["id"] },
+          { foreignKeyName: "guest_memory_source_call_id_fkey"; columns: ["source_call_id"]; isOneToOne: false; referencedRelation: "calls"; referencedColumns: ["id"] },
+        ];
+      };
       membership_purchases: {
         Row: {
           brand_id: string; consent_at: string; created_at: string; email: string | null; ends_at: string | null; id: string; membership_id: string | null;

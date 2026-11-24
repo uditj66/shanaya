@@ -3,10 +3,15 @@
 //  • tool-calls                   → run booking tools for the (signed) branch of the call
 //  • end-of-call-report           → save transcript, summary, recording, cost for the dashboard
 //  • transfer-destination-request → the branch's front-desk number for "transfer to a person"
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { adminClient } from "@/lib/supabase/admin";
 import { loadSalonContext } from "@/lib/agent/context";
 import { vapiCallConfig } from "@/lib/agent/vapi";
+import { findReturningGuest } from "@/lib/agent/find-returning-guest";
+import { rememberCall } from "@/lib/agent/remember-call";
+
+// Room for the after-call memory update (an AI call that runs once Vapi has been answered).
+export const maxDuration = 60;
 import { verifySalon } from "@/lib/agent/call-signature";
 import { runTool } from "@/lib/agent/tools";
 import { countryCodeFor, normalizePhone } from "@/lib/time";
@@ -129,10 +134,11 @@ export async function POST(req: NextRequest) {
       if (!salonId) return NextResponse.json({ error: "Sorry, this number is not set up yet. Please try again later." });
       const ctx = await loadSalonContext(db, salonId);
       if (!ctx) return NextResponse.json({ error: "Sorry, this number is not set up yet." });
-      await callRowId(salonId, msg);
       const caller = msg.call?.customer?.number ?? null;
+      // Recognise returning callers by caller ID (never throws; gives up after 2 s so the call always starts).
+      const [, guest] = await Promise.all([callRowId(salonId, msg), findReturningGuest(ctx, caller)]);
       // Saved "Shanaya" assistant from the Vapi dashboard + this branch's live knowledge (signed).
-      return NextResponse.json(vapiCallConfig(ctx, caller, "phone"));
+      return NextResponse.json(vapiCallConfig(ctx, caller, "phone", guest));
     }
 
     case "tool-calls": {
@@ -192,6 +198,10 @@ export async function POST(req: NextRequest) {
           })
           .eq("id", callId);
         if (error) await logEvent(salonId, "call_error", { reason: "could not save call report", message: error.message, call: msg.call?.id ?? null });
+        // Update what Shanaya remembers about this guest, after Vapi has its answer (never slows the call).
+        const transcript = msg.artifact?.transcript ?? msg.transcript ?? null;
+        const channel = isWebCall(msg) ? ("web" as const) : ("phone" as const);
+        after(() => rememberCall({ callId, salonId, channel, callerRaw: msg.call?.customer?.number ?? null, transcript, endedAt: ended }));
       }
       if (msg.endedReason && CALL_ERROR.test(msg.endedReason)) {
         await logEvent(salonId, "call_error", { endedReason: msg.endedReason, call: msg.call?.id ?? null });

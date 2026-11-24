@@ -57,7 +57,7 @@ export default async function BrandRootLayout({ children }: LayoutProps<"/b/[bra
           <SiteHeader name={brand.name} hide={[...hide]} />
           <main id="main">{children}</main>
           <SiteFooter brand={brand} hide={[...hide]} />
-          {flagship && <Concierge brand={brand.slug} agentName={brand.agent_name} voiceSlug={flagship.salonSlug} nudge={brand.nudge} />}
+          {flagship && <Concierge brand={brand.slug} brandName={brand.name} agentName={brand.agent_name} voiceSlug={flagship.salonSlug} nudge={brand.nudge} />}
         </MotionProvider>
         <Toaster />
       </body>

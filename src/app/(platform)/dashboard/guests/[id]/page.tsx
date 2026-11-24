@@ -8,6 +8,9 @@ import DashboardLoading from "@/app/(platform)/dashboard/loading";
 import { requireArea } from "@/lib/session";
 import { ButtonLink, EmptyState, PageHeader, Section, StatCard, StatusBadge, money } from "@/components/admin/kit";
 import { GuestForm } from "./guest-form";
+import { MemoryPanel, type PanelNote } from "./memory-panel";
+import { parseNotes, tidyNotes } from "@/lib/agent/guest-memory";
+import { todayIn } from "@/lib/time";
 
 /** Past visits (not cancelled) and upcoming confirmed bookings, soonest first. Runs at request time (dynamic page). */
 function splitVisits<B extends { starts_at: string; status: string }>(bookings: B[], membership?: { tier_name: string; ends_at: string | null }) {
@@ -27,7 +30,7 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
   if (!g) notFound();
   const tz = s.salon.timezone;
 
-  const [{ data: bookings }, { data: calls }, { data: memberships }] = await Promise.all([
+  const [{ data: bookings }, { data: calls }, { data: memberships }, { data: memoryRows }] = await Promise.all([
     s.supabase
       .from("bookings")
       .select("id, reference, starts_at, status, source, price, notes, salon_id, staff:staff_id (id, name), service:service_id (name)")
@@ -37,7 +40,18 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
     s.supabase.from("calls").select("id, channel, created_at, outcome, summary").or(`customer_id.eq.${g.id},customer_phone.eq.${g.phone}`).order("created_at", { ascending: false }).limit(10),
     // Memberships bought online, matched by mobile number across the brand.
     s.supabase.from("membership_purchases").select("tier_name, ends_at").eq("phone", g.phone).eq("status", "active").order("ends_at", { ascending: false }).limit(1),
+    // What Shanaya remembers about her (one row per brand, on the branch of her latest call).
+    s.supabase.from("guest_memory").select("notes, opted_out").eq("phone", g.phone).order("updated_at", { ascending: false }).limit(1),
   ]);
+  const today = todayIn(tz);
+  const memory = memoryRows?.[0];
+  const memoryNotes: PanelNote[] = tidyNotes(parseNotes(memory?.notes), today).map((n) => ({
+    text: n.text,
+    kind: n.kind,
+    when: n.until ? formatInTimeZone(new Date(`${n.until}T12:00:00Z`), tz, "d MMM yyyy") : null,
+    past: !!n.until && n.until < today,
+    added: formatInTimeZone(new Date(n.at), tz, "d MMM yyyy"),
+  }));
   // A therapist can only open guests they treat.
   if (s.role === "stylist" && !(bookings ?? []).some((b) => b.staff?.id === s.staffId)) notFound();
 
@@ -99,6 +113,9 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
         <div className="grid content-start gap-6 xl:col-span-2">
           <Section title="Profile">
             <GuestForm g={{ id: g.id, name: g.name, email: g.email, tags: g.tags, preferences: g.preferences, notes: g.notes }} readOnly={s.role === "stylist"} />
+          </Section>
+          <Section title="What Shanaya remembers" description="Learned from her calls. Shanaya uses these to greet her like a regular.">
+            <MemoryPanel customerId={g.id} notes={memoryNotes} optedOut={!!memory?.opted_out} readOnly={s.role === "stylist"} />
           </Section>
           <Section title="Conversations">
             {calls?.length ? (
