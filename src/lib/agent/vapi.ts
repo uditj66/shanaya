@@ -96,6 +96,10 @@ export function savedAssistantDefinition() {
       provider: "openai",
       model: "gpt-5.6-terra",
       temperature: 0.6,
+      // REQUIRED for tools: OpenAI's chat API rejects function tools for GPT-5.x reasoning models unless reasoning is
+      // "none" ("Function tools with reasoning_effort are not supported… set reasoning_effort to 'none'"). Without it
+      // Shanaya keeps talking but can never check times or book (seen on a live call, 24 Nov 2026). Also faster.
+      reasoningEffort: "none",
       messages: [
         {
           role: "system",
