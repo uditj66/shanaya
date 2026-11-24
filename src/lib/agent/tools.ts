@@ -12,6 +12,10 @@ import { logEvent } from "../events";
 import { settleDepositOnCancel } from "../payments/deposits";
 import { MEMBER_FREE_HOLDS, applyBookingPerks, checkGiftCard, cleanGiftCode, type BookingPayment } from "../payments/redemption";
 import { rateLimited } from "../rate-limit";
+import { loadReturningGuest } from "./find-returning-guest";
+import { nameMatches } from "./returning-guest";
+import { memoryLines } from "./guest-memory";
+import { markVerifiedPhone } from "./remember-call";
 
 export { toolDefs, type ToolDef };
 
@@ -310,12 +314,40 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
   async guest_history(t, a) {
     const phone = phoneFor(t, a.phone);
     if (phone.length < 10) return { error: "Ask the guest for her mobile number." };
-    if (!(await webVerified(t, a, phone))) {
-      return { error: "For privacy, past visits are only shared online with a booking reference. Ask her for any past booking reference, or just ask which therapist she'd like." };
-    }
     const db = adminClient();
     const { data: customers } = await db.from("customers").select("id, name").in("salon_id", brandIds(t)).eq("phone", phone);
-    if (!customers?.length) return { visits: [], message: "First visit: no previous bookings with this number. Welcome her warmly." };
+    // Same answer whether the number is unknown or the name doesn't match, so nobody can probe who is a guest.
+    const newGuest = { visits: [], message: "No previous visits found. Welcome her warmly as a new guest. Never say a number or name wasn't found or didn't match." };
+    if (t.channel === "web") {
+      // No caller ID online: her mobile number plus the first name on file (or any of her booking references).
+      if (await rateLimited(`guest_history:${t.callId ?? phone}`, 4, 3600)) return newGuest;
+      const byName = (customers ?? []).some((c) => nameMatches(str(a.name), c.name));
+      const byRef = !byName && str(a.reference) ? await webVerified(t, a, phone).catch(() => false) : false;
+      if (!byName && !byRef) {
+        return str(a.name) || str(a.reference) ? newGuest : { error: "Ask for her first name too, then call guest_history again with phone and name." };
+      }
+      await markVerifiedPhone(t.callId, phone).catch(() => {}); // so what she shares is remembered for this guest
+    }
+    if (!customers?.length) return newGuest;
+    const profile = await loadReturningGuest(t.ctx, phone).catch(() => null);
+    const tz = t.ctx.salon.timezone;
+    const extras = {
+      upcoming: profile?.upcoming
+        ? {
+            treatment: profile.upcoming.treatment,
+            branch: profile.upcoming.branch,
+            when: `${fmtDate(profile.upcoming.at, tz)} ${fmtTime(profile.upcoming.at, tz)}`,
+            // online, the reference itself is the key to changing a booking, so it is never handed out here
+            ...(t.channel === "web" ? {} : { reference: profile.upcoming.reference }),
+          }
+        : null,
+      membership: profile?.member ? { tier: profile.member.tier, until: profile.member.endsAt ? fmtDate(profile.member.endsAt, tz) : null } : null,
+      remembered: profile?.notes.length ? memoryLines(profile.notes, tz, todayIn(tz)) : [],
+      last_call_summary: profile?.notes.length ? null : (profile?.lastCall?.summary.slice(0, 400) ?? null),
+      usual_branch: profile?.usualBranch ?? null,
+      how_to_use:
+        "She is a returning guest: welcome her back by first name and use this briefly and naturally, like a front desk that remembers her (never read it out or say how you know). Offer her favourite therapist and usual branch as questions. If 'remembered' mentions an occasion, ask about it warmly (how it went, or whether she's preparing for it).",
+    };
     const { data } = await db
       .from("bookings")
       .select("starts_at, status, salon_id, salon:salon_id (brand_name, area, name, timezone), staff:staff_id (name, title), service:service_id (name, category)")
@@ -333,7 +365,7 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
       served_by: b.staff ? `${b.staff.name}${b.staff.title ? ` (${b.staff.title})` : ""}` : null,
       therapist_name: b.staff?.name ?? null,
     }));
-    if (!visits.length) return { guest: customers[0].name, visits: [], message: "No past visits yet (only upcoming ones)." };
+    if (!visits.length) return { guest: customers[0].name, visits: [], message: "No past visits yet (only upcoming ones).", ...extras };
     // who she has seen most often, per branch
     const counts = new Map<string, { name: string; branch: string; branch_id: string; times: number }>();
     for (const v of visits) {
@@ -349,6 +381,7 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
       favourites: [...counts.values()].sort((x, y) => y.times - x.times).slice(0, 3),
       visits: visits.slice(0, 5),
       tip: "Offer the same person by name. Pass therapist_name (and that branch_id) to check_availability.",
+      ...extras,
     };
   },
 

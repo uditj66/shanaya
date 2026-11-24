@@ -54,12 +54,13 @@ export const toolDefs: ToolDef[] = [
   {
     name: "guest_history",
     description:
-      "Look up a returning guest's past visits at any branch of the brand: which treatment, which branch, and exactly which therapist, doctor or beautician served her. Use it when she wants 'the same person as last time' or can't remember the name. On the website a past booking reference is required.",
+      "Recognise a returning guest and look up her past visits at any branch of the brand: treatments, branches, the therapist, doctor or beautician who served her, her usual branch, any upcoming visit and membership. On the website, call it once you have her mobile number and first name. Also use it when she wants 'the same person as last time'.",
     parameters: {
       type: "object",
       properties: {
         phone: { type: "string", description: "Her mobile number. Optional only on phone calls with caller ID" },
-        reference: { type: "string", description: "Any of her booking references (required on the website)" },
+        name: { type: "string", description: "Her first name as she gave it (required on the website: it must match the name on her bookings)" },
+        reference: { type: "string", description: "Optional: any of her booking references, if she happens to have one" },
       },
       required: [],
     },

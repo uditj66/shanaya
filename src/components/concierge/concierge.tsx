@@ -52,7 +52,7 @@ function nudgeFor(page: ConciergePageInfo, agent: string, reason: "greeting" | "
   return { text: `${hello}. I'm ${agent}, your beauty concierge. Looking for something for your skin, or a time to visit?`, opener: "", cta: "Chat with me" };
 }
 
-export function Concierge({ brand, agentName, voiceSlug, nudge }: { brand: string; agentName: string; voiceSlug: string; nudge: NudgeSettings }) {
+export function Concierge({ brand, brandName, agentName, voiceSlug, nudge }: { brand: string; brandName: string; agentName: string; voiceSlug: string; nudge: NudgeSettings }) {
   const page = useConciergePage();
   const [open, setOpen] = useState(false);
   const [opener, setOpener] = useState<string | null>(null);
@@ -183,7 +183,7 @@ export function Concierge({ brand, agentName, voiceSlug, nudge }: { brand: strin
           </button>
         </div>
       )}
-      {open && <Panel brand={brand} agentName={agentName} voiceSlug={voiceSlug} opener={opener} onClose={close} />}
+      {open && <Panel brand={brand} brandName={brandName} agentName={agentName} voiceSlug={voiceSlug} opener={opener} onClose={close} />}
     </>
   );
 }
