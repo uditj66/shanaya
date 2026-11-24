@@ -66,8 +66,10 @@ if (cmd === "create") {
   const current = await api(`/assistant/${existing}`);
   const updated = await api(`/assistant/${existing}`, {
     method: "PATCH",
-    body: JSON.stringify({ model: { ...current.model, tools: def.model.tools }, server: def.server, serverMessages: def.serverMessages }),
+    // reasoningEffort travels with the tools: without it OpenAI rejects tool calls for GPT-5.x models (see vapi.ts)
+    body: JSON.stringify({ model: { ...current.model, tools: def.model.tools, reasoningEffort: def.model.reasoningEffort }, server: def.server, serverMessages: def.serverMessages }),
   });
   if (!updated.server?.credentialId) throw new Error("Vapi saved the server WITHOUT the webhook credential: tool calls would be rejected. Check VAPI_CREDENTIAL_ID.");
-  console.log(`Synced ${def.model.tools.length} tools, server (with secret) and server messages (${def.serverMessages.join(", ")}). Voice, model and personality left as you set them.`);
+  if (updated.model?.reasoningEffort !== def.model.reasoningEffort) throw new Error(`Vapi didn't keep reasoningEffort "${def.model.reasoningEffort}": Shanaya's tools may not work. Check the model in the Vapi dashboard.`);
+  console.log(`Synced ${def.model.tools.length} tools (reasoning "${def.model.reasoningEffort}"), server (with secret) and server messages (${def.serverMessages.join(", ")}). Voice, model and personality left as you set them.`);
 }

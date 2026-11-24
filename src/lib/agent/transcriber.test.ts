@@ -84,6 +84,10 @@ describe("transcriber", () => {
     }
   });
 
+  it("turns reasoning off, or OpenAI refuses every tool call and Shanaya can never check or book", () => {
+    expect((savedAssistantDefinition().model as { reasoningEffort?: string }).reasoningEffort).toBe("none");
+  });
+
   it("slow booking tools say a calm line after a few seconds, instead of silence", () => {
     type Tool = { function?: { name: string }; messages?: { type: string; content?: string; timingMilliseconds?: number }[] };
     const tools = savedAssistantDefinition().model.tools as Tool[];
