@@ -36,6 +36,20 @@ const CAPTION_LINGER_MS = 3500;
  */
 export type Activity = { kind: "thinking" } | { kind: "working"; label: string } | null;
 const ACTIVITY_TIMEOUT_MS = 12000; // never leave a stale "thinking" on screen
+/** Shanaya asking for a phone number (her words as transcribed): open the box to type it instead of saying it. */
+export const ASKS_FOR_NUMBER = /\b(mobile|phone|contact|whatsapp)\s+(number|no\.?)\b|\b(your|her|the)\s+number\b|\bdigits\b/i;
+
+/** A typed mobile number as it's sent into the call: marked as typed so Shanaya treats it as exact. */
+export const typedNumberMessage = (digits: string) => `My mobile number is ${digits} (typed on screen, exact).`;
+
+/** Digits from what she typed: a 10-digit Indian mobile, with or without +91 / 0. Null if it isn't one. */
+export function cleanMobile(raw: string): string | null {
+  let d = raw.replace(/\D/g, "");
+  if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+  else if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  return /^[6-9]\d{9}$/.test(d) ? d : null;
+}
+
 const DROP_WINDOW_MS = 15000; // a call that ends within this long of a network interruption counts as dropped
 
 const TOOL_LABELS: Record<string, string> = {
@@ -74,6 +88,8 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
   // Connection: a weak network shows a gentle notice; a call that drops right after an interruption is "dropped".
   const [weakNetwork, setWeakNetwork] = useState(false);
   const [dropped, setDropped] = useState(false);
+  // She asked for a phone number: the call screen opens a box to type it (exact, and no back-and-forth over digits).
+  const [numberAsked, setNumberAsked] = useState(false);
   const interruptedAt = useRef(0);
   const userStopped = useRef(false);
   const vapiRef = useRef<Vapi | null>(null);
@@ -102,6 +118,18 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
     setActivity(null);
   }, [setActivity]);
 
+  /** Put a typed mobile number into the live conversation; Shanaya answers it as if spoken. */
+  const sendNumber = useCallback(
+    (digits: string) => {
+      const text = typedNumberMessage(digits);
+      vapiRef.current?.send({ type: "add-message", message: { role: "user", content: text }, triggerResponseEnabled: true });
+      onTranscriptRef.current?.("you", text);
+      setNumberAsked(false);
+      setActivity({ kind: "thinking" });
+    },
+    [setActivity],
+  );
+
   const setMuted = useCallback((on: boolean) => {
     vapiRef.current?.setMuted(on);
     setMutedState(on);
@@ -123,6 +151,7 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
     setCards([]);
     setWeakNetwork(false);
     setDropped(false);
+    setNumberAsked(false);
     setStatus("connecting");
     try {
       const key = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
@@ -195,6 +224,7 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
           const role = m.role === "assistant" ? "ai" : "you";
           // The guest finished a sentence: Shanaya is thinking until she starts to speak (or a tool starts working).
           if (role === "you" && m.transcriptType === "final") setActivity({ kind: "thinking" });
+          if (role === "ai" && ASKS_FOR_NUMBER.test(m.transcript)) setNumberAsked(true);
           setCaption({ role, text: m.transcript });
           clearTimeout(captionTimer.current);
           captionTimer.current = setTimeout(() => setCaption(null), CAPTION_LINGER_MS);
@@ -235,6 +265,7 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
   );
 
   return {
+    numberAsked, sendNumber,
     status, speaking, muted, setMuted, startedAt, endedAt, caption, activity, levels, cards, weakNetwork, dropped, error, start, stop,
     live: status === "live" || status === "connecting",
   };
