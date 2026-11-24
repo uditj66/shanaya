@@ -70,21 +70,66 @@ export function memoryLines(notes: MemoryNote[], tz: string, today: string) {
   });
 }
 
-/** What the after-call AI step returns: the full, updated list of notes. */
-export const MemorySchema = z.object({
-  notes: z
-    .array(
-      z.object({
-        text: z.string().describe("One short fact in the third person, under 25 words"),
-        kind: z.enum(NOTE_KINDS),
-        until: z.string().nullable().describe("For an occasion with a known date: YYYY-MM-DD. Otherwise null"),
-      }),
-    )
-    .describe(`At most ${MAX_NOTES} notes (anything beyond is cut by tidyNotes)`),
+/**
+ * Who a call's notes are about. One entry per mobile number: the caller, and everyone a booking was made for on the
+ * call (a mother, a sister-in-law…). A number can cover more than one person (a mother booked on her daughter's phone).
+ */
+export type MemoryGuest = { phone: string; salonId: string; names: string[]; isCaller: boolean };
+
+/** Group the caller and the people booked on the call by mobile number (memory is kept per number). */
+export function guestsOnCall(caller: { phone: string; name?: string | null; salonId: string } | null, booked: { phone: string; name: string; salonId: string }[]): MemoryGuest[] {
+  const byPhone = new Map<string, MemoryGuest>();
+  if (caller) byPhone.set(caller.phone, { phone: caller.phone, salonId: caller.salonId, names: caller.name ? [caller.name] : [], isCaller: true });
+  for (const b of booked) {
+    if (!b.phone || b.phone.length < 10) continue;
+    const g = byPhone.get(b.phone) ?? { phone: b.phone, salonId: b.salonId, names: [], isCaller: false };
+    if (b.name && !g.names.some((n) => n.toLowerCase() === b.name.toLowerCase())) g.names.push(b.name);
+    byPhone.set(b.phone, g);
+  }
+  return [...byPhone.values()];
+}
+
+/** The prompt for one call: guests are labelled G1, G2… (their phone numbers never go to the AI). */
+export function memoryPrompt(guests: (MemoryGuest & { existing: MemoryNote[] })[], today: string, transcript: string) {
+  const list = guests
+    .map((g, i) => {
+      const who = g.isCaller
+        ? `the CALLER${g.names.length ? ` (${g.names.join(", ")})` : ""}${g.names.length > 1 ? "; this number is also used for the other people named" : ""}`
+        : `booked on this call: ${g.names.join(", ") || "name not given"}${g.names.length > 1 ? " (several people share this number)" : ""}`;
+      const notes = g.existing.length ? g.existing.map((n) => `  - [${n.kind}${n.until ? `, ${n.until}` : ""}] ${n.text}`).join("\n") : "  (none)";
+      return `G${i + 1}: ${who}\n  Notes on file:\n${notes}`;
+    })
+    .join("\n\n");
+  return `Call date: ${today}\n\nGuests:\n${list}\n\nTranscript:\n${transcript.slice(-12000)}`;
+}
+
+const NoteOut = z.object({
+  text: z.string().describe("One short fact in the third person, under 25 words"),
+  kind: z.enum(NOTE_KINDS),
+  until: z.string().nullable().describe("For an occasion with a known date: YYYY-MM-DD. Otherwise null"),
 });
 
-export const MEMORY_INSTRUCTIONS = `You keep the guest notes for a luxury beauty and spa studio's front desk, so the receptionist can remember a returning guest.
-You get the notes already on file and the transcript of the latest conversation. Return the full, updated list of notes.
+/** What the after-call AI step returns: the full, updated list of notes for every guest listed. */
+export const MemorySchema = z.object({
+  guests: z
+    .array(
+      z.object({
+        guest: z.string().describe("The guest label from the list, e.g. G1"),
+        notes: z.array(NoteOut).describe(`At most ${MAX_NOTES} notes (anything beyond is cut by tidyNotes)`),
+      }),
+    )
+    .describe("One entry per guest in the list, even if her notes are unchanged"),
+});
+
+export const MEMORY_INSTRUCTIONS = `You keep the guest notes for a luxury beauty and spa studio's front desk, so the receptionist can remember returning guests.
+You get a list of guests (G1, G2…) with the notes already on file for each, and the transcript of the latest conversation.
+The caller is often not the only guest: she may book for her mother, a sister-in-law or a friend. For EACH guest in the list, return her full, updated list of notes.
+
+Whose facts go where:
+- The caller's notes: facts about the caller herself.
+- A booked guest's notes: facts about that person, whoever said them on the call ("my sister-in-law has an important client meeting on Thursday").
+- When several people share one number, start each note that isn't about the first person named with that person's first name ("Ritika: prefers mornings").
+- Facts about anyone not in the list are not recorded at all.
 
 Keep only facts that will help serve HER better next time:
 - concern: her skin, hair or body goals and concerns in beauty terms ("dull skin before winter", "wants to grow out her bob").
@@ -96,8 +141,7 @@ Keep only facts that will help serve HER better next time:
 Rules:
 - Update or remove existing notes that the conversation shows are out of date. Keep the rest as they are.
 - Never record health or medical information of any kind (allergies, pregnancy, medication, skin or medical conditions, treatments by a doctor), payment details, codes, passwords or ID numbers. Those are handled elsewhere.
-- Don't record what the booking system already knows: appointment dates, times, prices, references, treatments booked.
-- If the conversation was about someone else (booking for a friend), only record facts about the guest herself.
-- No guesses, no judgements, nothing she'd be embarrassed to hear repeated. If nothing is worth keeping, return the existing notes unchanged.
+- Don't record what the booking system already knows: appointment dates, times, prices, references, treatments booked. The reason behind a booking is worth keeping ("wants a polished look for a client meeting on 26 November").
+- No guesses, no judgements, nothing she'd be embarrassed to hear repeated. If nothing is worth keeping for a guest, return her existing notes unchanged.
 - At most ${MAX_NOTES} notes; prefer the most useful and most recent.`;
 
