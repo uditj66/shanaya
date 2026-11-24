@@ -38,16 +38,38 @@ function within1(a: string, b: string) {
   return a.slice(i) === b.slice(i) || rest(a, b) || rest(b, a) || a.slice(i + 1) === b.slice(i);
 }
 
+/** Soundex: names that sound alike share a code ("Archana" and "Archium" are both A625). */
+export function soundex(name: string) {
+  const s = plain(name).replace(/[^a-z]/g, "");
+  if (!s) return "";
+  const code = (c: string) => ("bfpv".includes(c) ? "1" : "cgjkqsxz".includes(c) ? "2" : "dt".includes(c) ? "3" : c === "l" ? "4" : "mn".includes(c) ? "5" : c === "r" ? "6" : "");
+  let out = s[0].toUpperCase();
+  let last = code(s[0]);
+  for (const c of s.slice(1)) {
+    const d = code(c);
+    if (d && d !== last) out += d;
+    if (c !== "h" && c !== "w") last = d; // h and w don't separate equal sounds
+    if (out.length === 4) break;
+  }
+  return out.padEnd(4, "0");
+}
+
 /**
  * Website guests have no caller ID, so the first name she gives must match the one on file for that number.
- * One letter of slack for names of 5+ letters (speech-to-text often mis-hears a letter).
+ * Speech-to-text often mis-hears names, so close matches count:
+ *  • one letter off, for names of 5+ letters ("Ananiya" for "Ananya");
+ *  • or sounds alike: same Soundex code AND the same first two letters, lengths within two ("Archium" for "Archana").
+ *    The first-two-letters rule keeps different names apart ("Ritika" vs "Radhika" share a Soundex code).
+ * The mobile number must match too, so this only forgives mishearing; it can't open someone else's history.
  */
 export function nameMatches(given: string | null | undefined, onFile: string | null | undefined) {
   const g = firstNameOf(given);
   const f = firstNameOf(onFile);
   if (!g || !f) return false;
   const [a, b] = [plain(g), plain(f)];
-  return a === b || (Math.min(a.length, b.length) >= 5 && within1(a, b));
+  if (a === b) return true;
+  if (Math.min(a.length, b.length) >= 5 && within1(a, b)) return true;
+  return Math.min(a.length, b.length) >= 4 && Math.abs(a.length - b.length) <= 2 && a.slice(0, 2) === b.slice(0, 2) && soundex(a) === soundex(b);
 }
 
 const day = (iso: string, tz: string) => formatInTimeZone(new Date(iso), tz, "EEEE d MMMM yyyy");

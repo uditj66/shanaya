@@ -1,6 +1,6 @@
 // Guest memory: what is kept between conversations, and what never is.
 import { describe, expect, it } from "vitest";
-import { isSensitive, MAX_NOTES, memoryLines, parseNotes, tidyNotes, type MemoryNote } from "./guest-memory";
+import { guestsOnCall, isSensitive, MAX_NOTES, memoryLines, memoryPrompt, parseNotes, tidyNotes, type MemoryNote } from "./guest-memory";
 
 const note = (text: string, at: string, extra: Partial<MemoryNote> = {}): MemoryNote => ({ text, kind: "preference", until: null, at, ...extra });
 const TODAY = "2026-11-24";
@@ -44,6 +44,36 @@ describe("guest memory", () => {
     expect(parsed).toHaveLength(2);
     expect(parsed[1]).toMatchObject({ text: "x", kind: "preference", until: null });
     expect(parseNotes("not an array")).toEqual([]);
+  });
+
+  it("remembers everyone a call was about: the caller and each person booked (from a real call)", () => {
+    const guests = guestsOnCall({ phone: "919800000001", name: "Ritika", salonId: "bandra" }, [
+      { phone: "919800000002", name: "Empla", salonId: "anna-nagar" }, // her sister-in-law
+      { phone: "919800000001", name: "Sunita", salonId: "koramangala" }, // her mother, booked on her number
+      { phone: "919800000002", name: "empla", salonId: "anna-nagar" }, // a second treatment for the same person
+      { phone: "123", name: "Bad number", salonId: "x" },
+    ]);
+    expect(guests).toEqual([
+      { phone: "919800000001", salonId: "bandra", names: ["Ritika", "Sunita"], isCaller: true },
+      { phone: "919800000002", salonId: "anna-nagar", names: ["Empla"], isCaller: false },
+    ]);
+    // an unproven website caller: only the people booked
+    expect(guestsOnCall(null, [{ phone: "919800000002", name: "Empla", salonId: "a" }])).toEqual([{ phone: "919800000002", salonId: "a", names: ["Empla"], isCaller: false }]);
+  });
+
+  it("labels guests G1, G2… and never sends their phone numbers to the AI", () => {
+    const p = memoryPrompt(
+      [
+        { phone: "919800000001", salonId: "a", names: ["Ritika", "Sunita"], isCaller: true, existing: [note("Prefers evenings", "2026-11-01")] },
+        { phone: "919800000002", salonId: "b", names: ["Empla"], isCaller: false, existing: [] },
+      ],
+      TODAY,
+      "Guest: book my sister-in-law Empla, she has a client meeting on Thursday",
+    );
+    expect(p).toContain("G1: the CALLER (Ritika, Sunita)");
+    expect(p).toContain("G2: booked on this call: Empla");
+    expect(p).toContain("[preference] Prefers evenings");
+    expect(p).not.toMatch(/9800000001|9800000002/);
   });
 
   it("reads naturally in the prompt", () => {

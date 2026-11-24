@@ -66,6 +66,12 @@ const transferTool = () => ({
  */
 export const SERVER_MESSAGES = ["tool-calls", "end-of-call-report", "transfer-destination-request"];
 
+/** Vapi's default browser messages (per its API docs) plus tool results for the on-screen cards. */
+export const WEB_CLIENT_MESSAGES = [
+  "conversation-update", "function-call", "hang", "model-output", "speech-update", "status-update", "transfer-update",
+  "transcript", "tool-calls", "user-interrupted", "voice-input", "workflow.node.started", "assistant.started", "tool-calls-result",
+];
+
 /** Human-feel settings for the saved assistant. */
 const conversationSettings = {
   // Every call overrides this with transcriberFor(ctx) (adds the brand's keyterms); kept in step for new assistants.
@@ -122,6 +128,9 @@ export function vapiCallConfig(ctx: SalonContext, callerPhone: string | null, ch
       ...(greeting ? { firstMessage: escapeLiquid(greeting) } : {}),
       // Hears Hindi-English mixing, and listens for this brand's names (treatments, therapists, areas).
       transcriber: transcriberFor(ctx),
+      // Website calls also receive tool results, to show time slots and the booking card on screen. This list
+      // REPLACES Vapi's defaults, so it repeats them all and adds "tool-calls-result".
+      ...(channel === "web" ? { clientMessages: WEB_CLIENT_MESSAGES } : {}),
       variableValues: {
         knowledge: escapeLiquid(buildKnowledge(ctx, { callerPhone, mode, guest: known })),
         brand_name: escapeLiquid(brandName(ctx)),

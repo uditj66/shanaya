@@ -248,7 +248,7 @@ function rulesSection(ctx: SalonContext, mode: ConversationMode) {
     ? "- Deposits: none are taken at the moment."
     : mode === "chat"
       ? `- Deposit: ${amount} for EACH treatment booked online (never more than that treatment's price), so three treatments mean three deposits. It holds the time for a few minutes until paid, comes off her bill at the studio, is refunded in full if she cancels at least ${h} hours before, and is kept for a later cancellation or a no-show.`
-      : `- Deposit: bookings made on this call need no deposit. Bookings on the website or website chat take ${amount} for each treatment (it comes off the bill; refunded if cancelled at least ${h} hours before, kept for later cancellations and no-shows).`;
+      : `- Deposit: bookings made on this call (by phone or by voice on the website) need NO deposit: never tell her one applies. Only the typed website chat and the online booking page take ${amount} for each treatment (it comes off the bill; refunded if cancelled at least ${h} hours before, kept for later cancellations and no-shows). Mention that only if she asks about booking online.`;
   return `
 # Booking rules (the system enforces these exactly; explain them when she asks, never promise an exception)
 - Cancellation window: cancelling or rescheduling is free up to ${h} hours before the appointment. Within ${h} hours it is a late change:
@@ -284,6 +284,7 @@ const CLOSING_RULE = `
 const WEB_RECOGNITION = `
 # Recognising returning guests on the website (this replaces any older rule that visit history needs a booking reference)
 - Early in the conversation, once she wants to book or mentions she has been before, ask for her first name and mobile number, then call guest_history with both.
+- While guest_history is running, say only a neutral line ("One moment, let me just look for you"). Never say "welcome back" or hint that she has been before until its result shows her visits.
 - If it returns her visits, welcome her back warmly by first name and use what it gives naturally and briefly (favourite therapist, usual branch, last treatment, upcoming visit, membership), like a front desk that remembers her. Never read it out or say how you know.
 - If it finds nothing, simply carry on as with a new guest. Never say the number or name wasn't found or didn't match, and never hint at someone else's visits.
 - Changing or cancelling an existing booking online still needs its booking reference plus her mobile number (find_appointments); it's in her confirmation message.`;

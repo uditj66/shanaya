@@ -179,9 +179,11 @@ function errorText(e: unknown) {
 }
 
 /** What a booking's membership benefit and gift card mean, in words Shanaya can pass on. */
-function paymentView(p: BookingPayment | undefined, noDeposit: boolean, currency: string) {
-  if (!p) return { no_deposit: noDeposit };
+function paymentView(p: BookingPayment | undefined, noDeposit: boolean, currency: string, price: number) {
   const m = (n: number) => money(n, currency);
+  // No membership or gift card: still say what she pays, or Shanaya fills the gap from the website-chat deposit rule
+  // and tells a phone or voice caller about a deposit that doesn't exist (seen on a live call).
+  if (!p) return { no_deposit: noDeposit, pay_at_studio: price, payment_note: `She pays ${m(price)} at the studio.` };
   const parts = [
     p.member && (p.member.benefit === "included" ? `This treatment is included with her ${p.member.tier} membership (${p.member.includedNote}).` : `Her ${p.member.tier} member discount takes ${m(p.member.discount)} off.`),
     p.giftCard && `${m(p.giftCard.amount)} was paid with her gift card; ${m(p.giftCard.balance)} is left on it.`,
@@ -291,7 +293,7 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
     }
     if (t.callId) await db.from("calls").update({ customer_id: ctx.salon.id === t.ctx.salon.id ? customer.id : null, outcome: "booked" }).eq("id", t.callId);
     return {
-      ...paymentView(perks.payment, perks.noDeposit, ctx.salon.currency),
+      ...paymentView(perks.payment, perks.noDeposit, ctx.salon.currency, Number(svc.price)),
       ...(perks.memberEndsAt && {
         member_note: `Tell her: her membership ends on ${fmtDate(perks.memberEndsAt, ctx.salon.timezone)}, before this appointment, so member benefits don't apply to this visit and it is at the regular price. If she renews her membership before the visit, the studio can apply her benefits then. Offer an earlier date inside her membership if she prefers.`,
       }),
@@ -308,6 +310,9 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
       date: fmtDate(booking.starts_at, ctx.salon.timezone),
       time: fmtTime(booking.starts_at, ctx.salon.timezone),
       price: Number(svc.price),
+      // for the confirmation card on website calls (calendar entry), never read out
+      minutes: svc.duration_minutes,
+      timezone: ctx.salon.timezone,
     };
   },
 

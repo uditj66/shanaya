@@ -30,19 +30,27 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
   if (!g) notFound();
   const tz = s.salon.timezone;
 
-  const [{ data: bookings }, { data: calls }, { data: memberships }, { data: memoryRows }] = await Promise.all([
+  const [{ data: bookings }, { data: memberships }, { data: memoryRows }] = await Promise.all([
     s.supabase
       .from("bookings")
-      .select("id, reference, starts_at, status, source, price, notes, salon_id, staff:staff_id (id, name), service:service_id (name)")
+      .select("id, reference, starts_at, status, source, price, notes, salon_id, call_id, staff:staff_id (id, name), service:service_id (name)")
       .eq("customer_id", g.id)
       .order("starts_at", { ascending: false })
       .limit(50),
-    s.supabase.from("calls").select("id, channel, created_at, outcome, summary").or(`customer_id.eq.${g.id},customer_phone.eq.${g.phone}`).order("created_at", { ascending: false }).limit(10),
     // Memberships bought online, matched by mobile number across the brand.
     s.supabase.from("membership_purchases").select("tier_name, ends_at").eq("phone", g.phone).eq("status", "active").order("ends_at", { ascending: false }).limit(1),
     // What Shanaya remembers about her (one row per brand, on the branch of her latest call).
     s.supabase.from("guest_memory").select("notes, opted_out").eq("phone", g.phone).order("updated_at", { ascending: false }).limit(1),
   ]);
+  // Her conversations: calls she made (by guest or number, which phone calls store as "+91…"), and calls where
+  // someone else booked her in ("book my sister-in-law").
+  const bookedOn = [...new Set((bookings ?? []).map((b) => b.call_id).filter((x): x is string => !!x))];
+  const { data: calls } = await s.supabase
+    .from("calls")
+    .select("id, channel, external_id, created_at, outcome, summary")
+    .or([`customer_id.eq.${g.id}`, `customer_phone.eq.${g.phone}`, `customer_phone.eq.+${g.phone}`, ...(bookedOn.length ? [`id.in.(${bookedOn.join(",")})`] : [])].join(","))
+    .order("created_at", { ascending: false })
+    .limit(10);
   const today = todayIn(tz);
   const memory = memoryRows?.[0];
   const memoryNotes: PanelNote[] = tidyNotes(parseNotes(memory?.notes), today).map((n) => ({
@@ -124,7 +132,8 @@ async function Guest({ params }: { params: Promise<{ id: string }> }) {
                   <li key={c.id} className="py-2.5">
                     <Link href={`/dashboard/inbox?id=${c.id}` as Route} className="flex items-center justify-between gap-3 hover:underline">
                       <span>
-                        {c.channel === "phone" ? "Phone call" : "Website chat"} · {formatInTimeZone(new Date(c.created_at), tz, "d MMM, h:mm a")}
+                        {/* website voice calls come from Vapi (they have an external id); typed chats don't */}
+                        {c.channel === "phone" ? "Phone call" : c.external_id ? "Website call" : "Website chat"} · {formatInTimeZone(new Date(c.created_at), tz, "d MMM, h:mm a")}
                       </span>
                       {c.outcome && <StatusBadge status={c.outcome} />}
                     </Link>

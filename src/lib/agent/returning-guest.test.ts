@@ -56,6 +56,15 @@ describe("returning guests", () => {
     expect(nameMatches("Ananya", null)).toBe(false);
   });
 
+  it("forgives names that speech-to-text mis-hears but that sound the same (from a real call)", () => {
+    expect(nameMatches("Archium", "Archana")).toBe(true); // heard on a live web call
+    expect(nameMatches("Kavyaa", "Kavya")).toBe(true);
+    expect(nameMatches("Ritika", "Radhika")).toBe(false); // sound-alike code, but a different name
+    expect(nameMatches("Archana", "Anjali")).toBe(false);
+    expect(nameMatches("Priya", "Pooja")).toBe(false);
+    expect(nameMatches("Neha", "Nisha")).toBe(false);
+  });
+
   it("website calls and chat recognise guests by number + first name, never by reference", () => {
     for (const mode of ["web-voice", "chat"] as const) {
       const k = buildKnowledge(ctx, { mode, now: NOW });

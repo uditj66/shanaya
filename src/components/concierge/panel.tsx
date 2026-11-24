@@ -15,6 +15,8 @@ import { DepositPay } from "@/components/brand/deposit-pay";
 import { AnimatePresence } from "motion/react";
 import { useShanayaVoice } from "@/components/use-shanaya-voice";
 import { CallScreen, type CallStage } from "./call-screen";
+import { CallCardView } from "./call-card-view";
+import type { BookingCard } from "./call-cards";
 import { BrandImage } from "@/components/brand/brand-image";
 import { cn, formatDuration, formatPrice } from "@/lib/utils";
 import { EASE_OUT_SOFT } from "@/components/motion/motion-provider";
@@ -26,16 +28,28 @@ type Part = ChatMessage["parts"][number];
 const ID_KEY = "concierge:id";
 
 type VoiceLine = { role: "ai" | "you"; text: string };
-type PastCall = { id: string; seconds: number; lines: VoiceLine[] };
+type PastCall = { id: string; seconds: number; lines: VoiceLine[]; bookings: BookingCard[]; dropped: boolean };
 
-/** A finished voice call, folded into the conversation: one quiet line, with the words tucked away. */
-function CallNote({ call, agentName }: { call: PastCall; agentName: string }) {
+/**
+ * A finished voice call, folded into the conversation: one quiet line, the bookings made on it (reference, calendar,
+ * directions, share), and the words tucked away behind "View transcript".
+ */
+function CallNote({ call, agentName, brandName }: { call: PastCall; agentName: string; brandName: string }) {
   return (
     <div className="rounded-2xl border border-line/80 bg-white/60 px-4 py-3 text-[0.8125rem]">
       <p className="flex items-center gap-2 text-stone">
         <Phone className="size-3.5" strokeWidth={1.5} aria-hidden />
         Voice call with {agentName} · {call.seconds < 60 ? "under a minute" : `${Math.round(call.seconds / 60)} min`}
+        {call.dropped && " · dropped"}
+        {call.bookings.length > 0 && ` · ${call.bookings.length} booking${call.bookings.length > 1 ? "s" : ""}`}
       </p>
+      {call.bookings.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {call.bookings.map((b) => (
+            <CallCardView key={b.reference} card={b} brandName={brandName} compact />
+          ))}
+        </div>
+      )}
       {call.lines.length > 0 && (
         <details className="mt-2">
           <summary className="cursor-pointer text-charcoal underline-offset-4 hover:underline">View transcript</summary>
@@ -170,9 +184,25 @@ function Conversation({
   const voice = useShanayaVoice(`/api/widget/${voiceSlug}/voice`, (role, text) => setVoiceLines((l) => [...l, { role, text }]));
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Fold a finished (or dropped) call into the conversation, once: duration, bookings made, and the transcript.
+  const folded = useRef<number | null>(null);
+  const foldCall = () => {
+    if (!voice.startedAt || folded.current === voice.startedAt) return setVoiceLines([]);
+    folded.current = voice.startedAt;
+    const seconds = Math.max(0, Math.round(((voice.endedAt ?? Date.now()) - voice.startedAt) / 1000));
+    const bookings = voice.cards.filter((c): c is BookingCard => c.kind === "booking");
+    setPastCalls((c) => [...c, { id: `call${c.length}`, seconds, lines: voiceLines, bookings, dropped: voice.dropped }]);
+    setVoiceLines([]);
+  };
+
   const beginCall = () => {
+    foldCall(); // "Call back" after a drop: keep what the dropped call achieved
     setCallStage("call");
     void voice.start();
+  };
+  const leaveCall = () => {
+    foldCall();
+    setCallStage(null);
   };
   // Explain the microphone first, unless the browser already allows it.
   const openCall = async () => {
@@ -187,17 +217,17 @@ function Conversation({
   };
 
   // When a call ends: show "Call ended" for a moment, then fold the call into the conversation and return to chat.
+  // (a booking card stays up a little longer, so she can see it before the call screen closes)
+  const endedWithBooking = voice.cards.some((c) => c.kind === "booking");
   useEffect(() => {
     if (voice.status !== "ended" || callStage !== "call") return;
-    const seconds = voice.startedAt ? Math.round((Date.now() - voice.startedAt) / 1000) : 0;
     const t = setTimeout(() => {
-      setPastCalls((c) => (seconds > 0 || voiceLines.length ? [...c, { id: `call${c.length}`, seconds, lines: voiceLines }] : c));
-      setVoiceLines([]);
-      setCallStage(null);
+      leaveCall();
       inputRef.current?.focus({ preventScroll: true });
-    }, 1600);
+    }, endedWithBooking ? 3200 : 1600);
     return () => clearTimeout(t);
-  }, [voice.status, voice.startedAt, callStage, voiceLines]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- leaveCall reads the latest call state when the timer fires
+  }, [voice.status, callStage, endedWithBooking]);
   const logRef = useRef<HTMLDivElement>(null);
   const sentOpener = useRef(false);
   const busy = status === "submitted" || status === "streaming";
@@ -252,7 +282,7 @@ function Conversation({
 
       <AnimatePresence>
         {callStage && (
-          <CallScreen key="call" stage={callStage} voice={voice} agentName={agentName} brandName={brandName} onBegin={beginCall} onDismiss={() => setCallStage(null)} />
+          <CallScreen key="call" stage={callStage} voice={voice} agentName={agentName} brandName={brandName} onBegin={beginCall} onDismiss={leaveCall} />
         )}
       </AnimatePresence>
 
@@ -269,7 +299,7 @@ function Conversation({
           <MessageView key={msg.id || `m${i}`} msg={msg} isLast={i === messages.length - 1} busy={busy} onSend={send} brand={brand} chatId={id} />
         ))}
         {pastCalls.map((c) => (
-          <CallNote key={c.id} call={c} agentName={agentName} />
+          <CallNote key={c.id} call={c} agentName={agentName} brandName={brandName} />
         ))}
         {showTyping && <Typing name={agentName} />}
         {error && (

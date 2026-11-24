@@ -2,6 +2,7 @@
 // Live voice conversation with Shanaya in the browser, through Vapi: the same voice, brain and tools as phone calls.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type Vapi from "@vapi-ai/web";
+import { cardFromToolResult, readToolResultMessage, type CallCard } from "./concierge/call-cards";
 
 export type VoiceStatus = "idle" | "connecting" | "live" | "ended" | "error";
 
@@ -35,6 +36,7 @@ const CAPTION_LINGER_MS = 3500;
  */
 export type Activity = { kind: "thinking" } | { kind: "working"; label: string } | null;
 const ACTIVITY_TIMEOUT_MS = 12000; // never leave a stale "thinking" on screen
+const DROP_WINDOW_MS = 15000; // a call that ends within this long of a network interruption counts as dropped
 
 const TOOL_LABELS: Record<string, string> = {
   check_availability: "Checking availability…",
@@ -62,9 +64,18 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
   const [speaking, setSpeaking] = useState(false);
   const [muted, setMutedState] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [endedAt, setEndedAt] = useState<number | null>(null);
   const [caption, setCaption] = useState<Caption>(null);
   const [error, setError] = useState<string | null>(null);
   const [activity, setActivityState] = useState<Activity>(null);
+  // What the call shows on screen (time slots, the booking she made), from tool results, newest last.
+  const [cards, setCards] = useState<CallCard[]>([]);
+  const toolNames = useRef(new Map<string, string>()); // tool call id → tool name
+  // Connection: a weak network shows a gentle notice; a call that drops right after an interruption is "dropped".
+  const [weakNetwork, setWeakNetwork] = useState(false);
+  const [dropped, setDropped] = useState(false);
+  const interruptedAt = useRef(0);
+  const userStopped = useRef(false);
   const vapiRef = useRef<Vapi | null>(null);
   const levels = useRef<Levels>({ ai: 0, you: 0 });
   // Was anything said on this call? A call that ends before a single word was a failed connection, not a hang-up.
@@ -83,6 +94,7 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
   }, [onTranscript]);
 
   const stop = useCallback(async () => {
+    userStopped.current = true;
     await vapiRef.current?.stop();
     setStatus("ended");
     setSpeaking(false);
@@ -99,11 +111,18 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
     setError(null);
     setMutedState(false);
     setStartedAt(null);
+    setEndedAt(null);
     setCaption(null);
     setActivity(null);
     levels.current = { ai: 0, you: 0 };
     heard.current = false;
     failed.current = false;
+    userStopped.current = false;
+    interruptedAt.current = 0;
+    toolNames.current.clear();
+    setCards([]);
+    setWeakNetwork(false);
+    setDropped(false);
     setStatus("connecting");
     try {
       const key = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
@@ -120,8 +139,17 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
           setStartedAt(Date.now());
         });
         vapi.on("call-end", () => {
+          setEndedAt(Date.now());
+          // The network gave way and the call ended by itself shortly after: say so, and offer to call back.
+          if (!failed.current && !userStopped.current && heard.current && Date.now() - interruptedAt.current < DROP_WINDOW_MS) {
+            failed.current = true;
+            setDropped(true);
+            setError("The call dropped because of a weak connection. You can call back, and Shanaya will pick up where you left off as best she can.");
+            setStatus("error");
+          }
           // keep the "couldn't connect" message on screen if the call failed before it began
           if (!failed.current) setStatus("ended");
+          setWeakNetwork(false);
           setSpeaking(false);
           setCaption(null);
           setActivity(null);
@@ -136,10 +164,29 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
         // Listening before the call starts makes the SDK run its microphone level observer for this call.
         vapi.on("volume-level", (v: number) => (levels.current.ai = v));
         vapi.on("local-volume-level", (v: number) => (levels.current.you = v));
+        // Daily's network events: quality thresholds ("good" / "low" / "very-low") and connection interruptions.
+        vapi.on("network-quality-change", (e: any) => {
+          const q = String(e?.threshold ?? e?.quality ?? "good");
+          setWeakNetwork(q === "low" || q === "very-low");
+        });
+        vapi.on("network-connection", (e: any) => {
+          if (e?.event === "interrupted") {
+            interruptedAt.current = Date.now();
+            setWeakNetwork(true);
+          } else if (e?.event === "connected") setWeakNetwork(false);
+        });
         vapi.on("message", (m: any) => {
           if (m?.type === "tool-calls") {
-            const name = (m.toolCallList ?? m.toolCalls ?? [])[0]?.function?.name ?? "";
+            const list = m.toolCallList ?? m.toolCalls ?? [];
+            for (const c of list) if (c?.id && c?.function?.name) toolNames.current.set(c.id, c.function.name);
+            const name = list[0]?.function?.name ?? "";
             if (TOOL_LABELS[name]) setActivity({ kind: "working", label: TOOL_LABELS[name] });
+            return;
+          }
+          if (m?.type === "tool-calls-result") {
+            const r = readToolResultMessage(m, toolNames.current);
+            const card = r && cardFromToolResult(r.tool, r.result);
+            if (card) setCards((c) => [...c.filter((x) => !(card.kind === "slots" && x.kind === "slots")), card]); // one slots card at a time
             return;
           }
           if (m?.type === "user-interrupted") return setActivity(null);
@@ -187,5 +234,8 @@ export function useShanayaVoice(configUrl: string, onTranscript?: (role: "ai" | 
     [],
   );
 
-  return { status, speaking, muted, setMuted, startedAt, caption, activity, levels, error, start, stop, live: status === "live" || status === "connecting" };
+  return {
+    status, speaking, muted, setMuted, startedAt, endedAt, caption, activity, levels, cards, weakNetwork, dropped, error, start, stop,
+    live: status === "live" || status === "connecting",
+  };
 }
