@@ -139,14 +139,25 @@ async function recognised(t: ToolContext, phone: string) {
   };
 }
 
+/**
+ * Is this first name someone on this number: the guest on file, or anyone booked on it (a sister-in-law booked on
+ * Sudha's phone)? Same mishearing tolerance as recognition.
+ */
+async function nameOnNumber(customers: { id: string; name: string }[], given: string) {
+  if (!customers.length) return false;
+  if (customers.some((c) => nameMatches(given, c.name))) return true;
+  const { data } = await adminClient().from("bookings").select("guest_name").in("customer_id", customers.map((c) => c.id)).not("guest_name", "is", null).limit(50);
+  return (data ?? []).some((b) => nameMatches(given, b.guest_name));
+}
+
 const APPOINTMENT_FIELDS =
-  "reference, starts_at, ends_at, status, price, deposit_amount, deposit_status, gift_card_amount, gift_card_state, member_benefit, member_discount, refund_by, salon:salon_id (brand_name, area, name, timezone, currency), staff:staff_id (name), service:service_id (name)" as const;
+  "reference, starts_at, ends_at, status, price, guest_name, deposit_amount, deposit_status, gift_card_amount, gift_card_state, member_benefit, member_discount, refund_by, salon:salon_id (brand_name, area, name, timezone, currency), staff:staff_id (name), service:service_id (name)" as const;
 
 /** One appointment as Shanaya reads it back: treatment, specialist, when, where, and how it's paid for. */
 function appointmentView(
   t: ToolContext,
   b: {
-    reference: string; starts_at: string; ends_at: string; status: string; price: number;
+    reference: string; starts_at: string; ends_at: string; status: string; price: number; guest_name?: string | null;
     deposit_amount: number | null; deposit_status: string | null; gift_card_amount: number | null; gift_card_state: string | null;
     member_benefit: string | null; member_discount: number | null; refund_by: string | null;
     salon: { brand_name: string | null; area: string | null; name: string; timezone: string; currency: string } | null;
@@ -161,6 +172,8 @@ function appointmentView(
   const deposit = b.deposit_status === "paid" ? Number(b.deposit_amount ?? 0) : 0;
   return {
     reference: b.reference,
+    // someone else booked on her number (a sister-in-law); absent when it's the guest herself
+    ...(b.guest_name ? { for: b.guest_name } : {}),
     service: b.service?.name,
     therapist: b.staff?.name,
     branch: b.salon ? displayName(b.salon) : "",
@@ -411,17 +424,21 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
   async find_appointments(t, a) {
     const phone = phoneFor(t, a.phone);
     if (phone.length < 10) return { error: "Ask the guest for her mobile number." };
-    if (t.channel === "web") {
-      // No caller ID online: never list someone's bookings from a phone number alone.
-      if (!str(a.reference)) return { error: "For privacy, ask for her booking reference (from her confirmation) as well as her mobile number." };
-      const owned = await ownedBooking(t, a.reference, phone);
-      const { data } = await adminClient().from("bookings").select(APPOINTMENT_FIELDS).eq("id", owned.id);
-      // A booking reference that matches her number proves who she is, just like guest_history: recognise her.
-      await markVerifiedPhone(t.callId, phone).catch(() => {});
-      return { guest: owned.customer?.name, appointments: (data ?? []).map((b) => appointmentView(t, b)), ...(await recognised(t, phone)) };
-    }
     const db = adminClient();
     const { data: customers } = await db.from("customers").select("id, name, salon_id").in("salon_id", brandIds(t)).eq("phone", phone);
+    if (t.channel === "web") {
+      // No caller ID online, and guests have no confirmation message to read a reference from: her mobile number
+      // plus the first name on the booking proves it's her (a booking reference still works if she has one).
+      // The same answer for an unknown number or a wrong name, and a few tries per conversation, so nobody can probe.
+      const none = { appointments: [], message: "No upcoming appointments found with those details. Ask her to check the mobile number and the name the booking is under, or offer to book something new. Never say which detail didn't match." };
+      if (await rateLimited(`find_appointments:${t.callId ?? phone}`, 4, 3600)) return none;
+      const byRef = str(a.reference) ? await ownedBooking(t, a.reference, phone, false).then(() => true, () => false) : false;
+      const byName = !byRef && str(a.name) ? await nameOnNumber(customers ?? [], str(a.name)) : false;
+      if (!byRef && !byName) {
+        return str(a.name) || str(a.reference) ? none : { error: "Ask for her first name (the name the booking is under), then call find_appointments with phone and name." };
+      }
+      await markVerifiedPhone(t.callId, phone).catch(() => {}); // she proved who she is: recognise her, keep her notes
+    }
     if (!customers?.length) return { appointments: [], message: "No bookings found with that number." };
     const { data } = await db
       .from("bookings")
@@ -431,7 +448,8 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
       .gte("starts_at", new Date().toISOString())
       .order("starts_at")
       .limit(5);
-    return { guest: customers[0].name, appointments: (data ?? []).map((b) => appointmentView(t, b)), ...(await recognised(t, phone)) };
+    if (!data?.length) return { guest: customers[0].name, appointments: [], message: "She has no upcoming appointments. Offer to book one.", ...(await recognised(t, phone)) };
+    return { guest: customers[0].name, appointments: data.map((b) => appointmentView(t, b)), ...(await recognised(t, phone)) };
   },
 
   async reschedule_appointment(t, a) {

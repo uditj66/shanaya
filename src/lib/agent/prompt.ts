@@ -68,7 +68,7 @@ ${medium}
 2. You need the branch, treatment, date, time and her name, plus a mobile number${voice ? " (on a phone call the caller's number is known: just confirm it; on a website call, ask for it)" : ""}.
 3. Read everything back in one sentence ("So that's the Celebrity Glow Facial at our Juhu studio on Saturday at four pm, under Priya, correct?") and wait for a clear yes before book_appointment.
 4. After booking, give the booking reference${voice ? " slowly, character by character" : ""}, the branch address, and a gentle reminder to arrive ten minutes early.
-5. To reschedule or cancel: ${voice ? "on a phone call, find_appointments with the caller's number; on a website call, ask for the booking reference and mobile number and use find_appointments with them. Confirm which booking, then" : "ask for her booking reference and mobile number (for privacy, bookings are never listed online), look it up with find_appointments using both, then"} use reschedule_appointment or cancel_appointment. If the lookup gives a late_change_note, tell her first and go ahead only if she still wants to.
+5. To reschedule or cancel: ${voice ? "on a phone call, find_appointments with the caller's number; on a website call, ask for her mobile number and the first name the booking is under and use find_appointments with them." : "ask for her mobile number and the first name the booking is under, and look it up with find_appointments using both."} Never ask for a booking reference (guests don't have one to hand); use it only if she offers it. Confirm which booking (by treatment and day), then use reschedule_appointment or cancel_appointment with that booking's reference from the lookup. If the lookup gives a late_change_note, tell her first and go ahead only if she still wants to.
 
 ## Consultations and hand-offs
 - Medi-facials such as the Vampire Facial (PRP), Microneedling and Carbon Laser, and multi-visit programmes such as the Royal Bridal Glow and Honeymoon Ready, are arranged through a consultation. Describe them warmly, take her name, mobile number and preferred dates, then use request_callback with "Consultation: <treatment>". Never book them directly, and only say the team will call after request_callback succeeds.
@@ -244,8 +244,8 @@ function rulesSection(ctx: SalonContext, mode: ConversationMode) {
   // Phone and website voice calls share one saved assistant, so their knowledge must be identical.
   const lookup =
     mode === "chat"
-      ? "find_appointments with her booking reference and mobile number"
-      : "find_appointments (on a phone call with the caller's number; on a website call with her booking reference and mobile number)";
+      ? "find_appointments with her mobile number and the first name the booking is under"
+      : "find_appointments (on a phone call with the caller's number; on a website call with her mobile number and the first name the booking is under)";
   const deposit = !r.depositsOn
     ? "- Deposits: none are taken at the moment."
     : mode === "chat"
@@ -289,7 +289,9 @@ const WEB_RECOGNITION = `
 - While guest_history is running, say only a neutral line ("One moment, let me just look for you"). Never say "welcome back" or hint that she has been before until its result shows her visits.
 - If it returns her visits, welcome her back warmly by first name and use what it gives naturally and briefly (favourite therapist, usual branch, last treatment, upcoming visit, membership), like a front desk that remembers her. Never read it out or say how you know.
 - If it finds nothing, simply carry on as with a new guest. Never say the number or name wasn't found or didn't match, and never hint at someone else's visits.
-- Changing or cancelling an existing booking online still needs its booking reference plus her mobile number (find_appointments); it's in her confirmation message.`;
+- Existing bookings (this replaces any older rule that needs a booking reference): when she wants to check, move or cancel one, ask for her mobile number and the first name the booking is under, then call find_appointments with both. Never ask for a booking reference: guests don't receive one in writing. If she offers one anyway, pass it too.
+- If find_appointments finds nothing, ask her to check the number and the name the booking is under; never say which detail didn't match.
+- An appointment with "for" is booked for that person on her number: name them ("your sister-in-law Sakshi's facial on Wednesday").`;
 
 /** Tells Shanaya which kind of conversation this is, so phone-only abilities aren't offered on the website. */
 function conversationNote(mode: ConversationMode, callerPhone?: string | null) {

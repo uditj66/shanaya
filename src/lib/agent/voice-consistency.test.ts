@@ -161,7 +161,9 @@ describe("audit fixes: chat vs voice", () => {
     const chat = personaPrompt("chat");
     expect(chat).not.toContain("transfer_to_team");
     expect(chat).not.toMatch(/end the call|character by character|objects to the call/i);
-    expect(chat).toMatch(/booking reference and mobile number/i);
+    // guests get no written confirmation, so online they're found by number + the name on the booking
+    expect(chat).toMatch(/mobile number and the first name the booking is under/i);
+    expect(chat).toMatch(/Never ask for a booking reference/);
   });
 
   it("knowledge tells her which kind of conversation it is", () => {
