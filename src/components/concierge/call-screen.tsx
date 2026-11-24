@@ -6,6 +6,7 @@ import * as m from "motion/react-m";
 import { AnimatePresence } from "motion/react";
 import { Captions, CaptionsOff, Mic, MicOff, PhoneOff } from "lucide-react";
 import { LiveOrb, type OrbState } from "@/components/live-orb";
+import { CallCardView } from "./call-card-view";
 import type { useShanayaVoice } from "@/components/use-shanaya-voice";
 import { cn } from "@/lib/utils";
 import { EASE_OUT_SOFT } from "@/components/motion/motion-provider";
@@ -57,6 +58,7 @@ export function CallScreen({
   const live = voice.status === "live";
   const connecting = voice.status === "connecting";
   const elapsed = useElapsed(voice.startedAt, live);
+  const card = voice.cards.at(-1) ?? null; // the newest card: offered times, then the booking
 
   useEffect(() => {
     if (stage === "call" && (live || connecting)) endRef.current?.focus({ preventScroll: true });
@@ -121,11 +123,22 @@ export function CallScreen({
       </header>
 
       {/* Her presence */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
-        <LiveOrb state={orb} levels={voice.levels} size={168} />
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto px-6 py-2">
+        {/* the orb makes room when there's a card to read */}
+        <LiveOrb state={orb} levels={voice.levels} size={card ? 104 : 168} />
         <p className="min-h-6 text-[0.9375rem] text-stone" aria-live="polite">
           {status}
         </p>
+        {live && voice.weakNetwork && (
+          <p role="status" className="-mt-4 rounded-full bg-linen px-3 py-1 text-[0.75rem] text-stone">
+            Your connection is weak. Shanaya may break up a little.
+          </p>
+        )}
+        {card && (live || voice.status === "ended") && (
+          <div className="w-full max-w-[22rem]" aria-live="polite">
+            <CallCardView key={card.kind === "booking" ? card.reference : `${card.date}-${card.service}`} card={card} brandName={brandName} />
+          </div>
+        )}
 
         {stage === "priming" && (
           <div className="max-w-[18rem] text-center">
@@ -166,7 +179,7 @@ export function CallScreen({
         {stage === "priming" || voice.status === "error" ? (
           <div className="flex flex-col items-center gap-3">
             <button onClick={onBegin} className="min-h-12 w-full max-w-[16rem] rounded-full bg-charcoal px-6 text-[0.9375rem] text-ivory hover:bg-charcoal/90">
-              {voice.status === "error" ? "Try again" : "Start the call"}
+              {voice.status === "error" ? (voice.dropped ? "Call back" : "Try again") : "Start the call"}
             </button>
             <button onClick={onDismiss} className="min-h-10 px-4 text-[0.875rem] text-stone hover:text-charcoal">
               Back to chat

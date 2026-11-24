@@ -310,6 +310,9 @@ const handlers: Record<string, (t: ToolContext, a: Args) => Promise<unknown>> = 
       date: fmtDate(booking.starts_at, ctx.salon.timezone),
       time: fmtTime(booking.starts_at, ctx.salon.timezone),
       price: Number(svc.price),
+      // for the confirmation card on website calls (calendar entry), never read out
+      minutes: svc.duration_minutes,
+      timezone: ctx.salon.timezone,
     };
   },
 

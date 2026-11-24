@@ -9,6 +9,7 @@ import { SOURCES, type Source } from "@/lib/dashboard/overview";
 import { Meter, PageHeader, Section, StatCard, money, SegmentedNav } from "@/components/admin/kit";
 import { BookingsByChannel, CHANNEL_COLORS, CHANNEL_LABELS } from "../overview-charts";
 import { VisitorsChart } from "./visitors-chart";
+import { callLength, EARLY_DROP_SECONDS, isChat, voiceStats, type CallRow } from "@/lib/dashboard/voice-stats";
 
 const RANGES = { "7": "7 days", "30": "30 days", "90": "90 days" } as const;
 const FUNNEL = ["Opened booking", "Chose a treatment", "Chose a studio", "Chose a time", "Booked"];
@@ -31,8 +32,10 @@ async function Analytics({ searchParams }: { searchParams: Promise<{ d?: string 
   const [statsRes, { data: bookings }, { data: chats }] = await Promise.all([
     s.salon.brand_id ? s.supabase.rpc("site_stats", { p_brand: s.salon.brand_id, p_since: since, p_tz: tz }) : Promise.resolve({ data: null }),
     s.supabase.from("bookings").select("created_at, source, price, status").in("salon_id", s.scopeIds).gte("created_at", since).limit(20000),
-    s.supabase.from("calls").select("outcome").in("salon_id", s.scopeIds).eq("channel", "web").gte("created_at", since).limit(20000),
+    s.supabase.from("calls").select("channel, external_id, outcome, duration_seconds, ended_reason").in("salon_id", s.scopeIds).gte("created_at", since).limit(20000),
   ]);
+  const allCalls = (chats ?? []) as CallRow[];
+  const voice = { phone: voiceStats(allCalls, "phone"), web: voiceStats(allCalls, "web") };
   const st = (statsRes.data ?? null) as Stats | null;
 
   // Bookings made per day, by channel, across the range.
@@ -52,8 +55,10 @@ async function Analytics({ searchParams }: { searchParams: Promise<{ d?: string 
     const r = st?.daily.find((x) => x.day === d);
     return { label: label(d), visitors: r?.visitors ?? 0, views: r?.views ?? 0 };
   });
-  const chatTotal = chats?.length ?? 0;
-  const chatBooked = (chats ?? []).filter((c) => c.outcome === "booked").length;
+  // typed website chats only (website voice calls share the "web" channel but carry a Vapi call id)
+  const typed = allCalls.filter(isChat);
+  const chatTotal = typed.length;
+  const chatBooked = typed.filter((c) => c.outcome === "booked").length;
   const funnel = st?.funnel ?? [0, 0, 0, 0, 0];
 
   return (
@@ -106,6 +111,42 @@ async function Analytics({ searchParams }: { searchParams: Promise<{ d?: string 
           )}
         </Section>
       </div>
+
+      <Section title="Voice calls" description={`Calls with ${s.salon.agent_name || "Shanaya"}, ${RANGES[range]}. A call under ${EARLY_DROP_SECONDS} seconds, or one that failed, counts as dropped.`}>
+        <div className="grid gap-6 sm:grid-cols-2">
+          {(["phone", "web"] as const).map((k) => {
+            const v = voice[k];
+            return (
+              <div key={k} className="grid gap-3 text-sm">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium">{k === "phone" ? "Phone calls" : "Website voice calls"}</span>
+                  <span className="tabular text-muted-foreground">
+                    <span className="text-foreground">{v.calls}</span> calls · avg {callLength(v.avgSeconds)}
+                  </span>
+                </div>
+                <div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Ended in a booking</span>
+                    <span className="tabular">
+                      <span className="text-foreground">{v.booked}</span> · {pct(v.booked, v.calls)}%
+                    </span>
+                  </div>
+                  <Meter pct={pct(v.booked, v.calls)} color={CHANNEL_COLORS[k]} />
+                </div>
+                <div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Dropped early</span>
+                    <span className="tabular">
+                      <span className="text-foreground">{v.dropped}</span> · {pct(v.dropped, v.calls)}%
+                    </span>
+                  </div>
+                  <Meter pct={pct(v.dropped, v.calls)} color="var(--destructive)" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
 
       <div className="grid gap-6 xl:grid-cols-5">
         <Section className="xl:col-span-3" title="Bookings by channel" description="When each booking was made, and where it came from.">
