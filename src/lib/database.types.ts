@@ -33,7 +33,7 @@ export type Database = {
           deposit_amount: number | null; deposit_status: DepositStatus | null; hold_expires_at: string | null; pay_token: string | null;
           gift_card_id: string | null; gift_card_amount: number | null; gift_card_state: GiftCardUse | null;
           membership_purchase_id: string | null; member_benefit: MemberBenefit | null; member_discount: number | null;
-          member_included_from: string | null; refund_by: string | null; late_cancel: boolean;
+          member_included_from: string | null; refund_by: string | null; late_cancel: boolean; guest_name: string | null;
         };
         Insert: {
           blocked_until: string; call_id?: string | null; cancel_reason?: string | null; created_at?: string; created_by?: string | null;
@@ -43,7 +43,7 @@ export type Database = {
           deposit_amount?: number | null; deposit_status?: DepositStatus | null; hold_expires_at?: string | null; pay_token?: string | null;
           gift_card_id?: string | null; gift_card_amount?: number | null; gift_card_state?: GiftCardUse | null;
           membership_purchase_id?: string | null; member_benefit?: MemberBenefit | null; member_discount?: number | null;
-          member_included_from?: string | null; refund_by?: string | null; late_cancel?: boolean;
+          member_included_from?: string | null; refund_by?: string | null; late_cancel?: boolean; guest_name?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [

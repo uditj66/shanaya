@@ -76,15 +76,29 @@ export function memoryLines(notes: MemoryNote[], tz: string, today: string) {
  */
 export type MemoryGuest = { phone: string; salonId: string; names: string[]; isCaller: boolean };
 
-/** Group the caller and the people booked on the call by mobile number (memory is kept per number). */
-export function guestsOnCall(caller: { phone: string; name?: string | null; salonId: string } | null, booked: { phone: string; name: string; salonId: string }[]): MemoryGuest[] {
+/**
+ * Group the caller and the people booked on the call by mobile number (memory is kept per number).
+ * `onFile` lists everyone already known on each number, oldest first (the number's owner first): a sister-in-law
+ * booked on Sudha's phone must not have her notes read as Sudha's, so all names go to the note-taker, owner first.
+ */
+export function guestsOnCall(
+  caller: { phone: string; name?: string | null; salonId: string } | null,
+  booked: { phone: string; name: string; salonId: string }[],
+  onFile: Map<string, string[]> = new Map(),
+): MemoryGuest[] {
   const byPhone = new Map<string, MemoryGuest>();
-  if (caller) byPhone.set(caller.phone, { phone: caller.phone, salonId: caller.salonId, names: caller.name ? [caller.name] : [], isCaller: true });
+  const add = (g: MemoryGuest, name: string | null | undefined) => {
+    if (name && !g.names.some((n) => n.toLowerCase() === name.toLowerCase())) g.names.push(name);
+  };
+  if (caller) byPhone.set(caller.phone, { phone: caller.phone, salonId: caller.salonId, names: [], isCaller: true });
   for (const b of booked) {
-    if (!b.phone || b.phone.length < 10) continue;
-    const g = byPhone.get(b.phone) ?? { phone: b.phone, salonId: b.salonId, names: [], isCaller: false };
-    if (b.name && !g.names.some((n) => n.toLowerCase() === b.name.toLowerCase())) g.names.push(b.name);
-    byPhone.set(b.phone, g);
+    if (!b.phone || b.phone.length < 10 || byPhone.has(b.phone)) continue;
+    byPhone.set(b.phone, { phone: b.phone, salonId: b.salonId, names: [], isCaller: false });
+  }
+  for (const g of byPhone.values()) {
+    if (g.isCaller) add(g, caller?.name);
+    for (const n of onFile.get(g.phone) ?? []) add(g, n);
+    for (const b of booked) if (b.phone === g.phone) add(g, b.name);
   }
   return [...byPhone.values()];
 }
@@ -95,7 +109,7 @@ export function memoryPrompt(guests: (MemoryGuest & { existing: MemoryNote[] })[
     .map((g, i) => {
       const who = g.isCaller
         ? `the CALLER${g.names.length ? ` (${g.names.join(", ")})` : ""}${g.names.length > 1 ? "; this number is also used for the other people named" : ""}`
-        : `booked on this call: ${g.names.join(", ") || "name not given"}${g.names.length > 1 ? " (several people share this number)" : ""}`;
+        : `a guest whose number was booked on this call; people on this number: ${g.names.join(", ") || "name not given"}${g.names.length > 1 ? ` (they share it; ${g.names[0]} is the main guest)` : ""}`;
       const notes = g.existing.length ? g.existing.map((n) => `  - [${n.kind}${n.until ? `, ${n.until}` : ""}] ${n.text}`).join("\n") : "  (none)";
       return `G${i + 1}: ${who}\n  Notes on file:\n${notes}`;
     })
@@ -128,7 +142,7 @@ The caller is often not the only guest: she may book for her mother, a sister-in
 Whose facts go where:
 - The caller's notes: facts about the caller herself.
 - A booked guest's notes: facts about that person, whoever said them on the call ("my sister-in-law has an important client meeting on Thursday").
-- When several people share one number, start each note that isn't about the first person named with that person's first name ("Ritika: prefers mornings").
+- When several people share one number, start EVERY note that isn't about the first person named with that person's first name ("Sakshi: enjoys coffee during treatments"). Notes about the first person have no prefix. Re-label existing notes the same way if the conversation shows they're about someone else on the number.
 - Facts about anyone not in the list are not recorded at all.
 
 Keep only facts that will help serve HER better next time:

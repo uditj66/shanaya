@@ -33,7 +33,7 @@ async function Bookings({ searchParams }: { searchParams: Promise<{ ref?: string
 
   let query = supabase
     .from("bookings")
-    .select("id, reference, starts_at, status, source, price, notes, deposit_amount, deposit_status, gift_card_amount, gift_card_state, member_benefit, member_discount, customer:customer_id (name, phone), service:service_id (name), staff:staff_id (name), gift_card:gift_card_id (code), membership:membership_purchase_id (tier_name)")
+    .select("id, reference, starts_at, status, source, price, notes, guest_name, deposit_amount, deposit_status, gift_card_amount, gift_card_state, member_benefit, member_discount, customer:customer_id (name, phone), service:service_id (name), staff:staff_id (name), gift_card:gift_card_id (code), membership:membership_purchase_id (tier_name)")
     .eq("salon_id", salon.id)
     .limit(200);
   if (sp.ref) query = query.eq("reference", sp.ref.toUpperCase());
@@ -43,7 +43,7 @@ async function Bookings({ searchParams }: { searchParams: Promise<{ ref?: string
   const { data } = await query;
 
   const q = (sp.q ?? "").toLowerCase();
-  const rows = (data ?? []).filter((b) => !q || b.customer?.name.toLowerCase().includes(q) || b.customer?.phone.includes(q.replace(/\D/g, "") || "§"));
+  const rows = (data ?? []).filter((b) => !q || b.customer?.name.toLowerCase().includes(q) || !!b.guest_name?.toLowerCase().includes(q) || b.customer?.phone.includes(q.replace(/\D/g, "") || "§"));
 
   return (
     <div className="grid gap-6">
@@ -100,8 +100,10 @@ async function Bookings({ searchParams }: { searchParams: Promise<{ ref?: string
                       <div className="text-xs text-muted-foreground">#{b.reference}</div>
                     </TableCell>
                     <TableCell>
-                      {b.customer?.name}
-                      <div className="tabular text-xs text-muted-foreground">+{b.customer?.phone}</div>
+                      {b.guest_name ?? b.customer?.name}
+                      <div className="tabular text-xs text-muted-foreground">
+                        {b.guest_name ? `${b.customer?.name}'s number · ` : ""}+{b.customer?.phone}
+                      </div>
                     </TableCell>
                     <TableCell className="whitespace-normal">
                       {b.service?.name}

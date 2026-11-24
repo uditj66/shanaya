@@ -31,7 +31,7 @@ export async function loadCalendar(s: Session, opts: { date: string; view: "day"
   const [{ data: bookings }, { data: shifts }, { data: timeOff }] = await Promise.all([
     supabase
       .from("bookings")
-      .select("id, reference, staff_id, starts_at, ends_at, status, source, price, customer:customer_id (id, name), service:service_id (name)")
+      .select("id, reference, staff_id, starts_at, ends_at, status, source, price, guest_name, customer:customer_id (id, name), service:service_id (name)")
       .eq("salon_id", salon.id)
       .in("staff_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"])
       .gte("starts_at", from)
@@ -65,7 +65,7 @@ export async function loadCalendar(s: Session, opts: { date: string; view: "day"
   const events: CalBooking[] = (bookings ?? []).map((b) => ({
     id: b.id, reference: b.reference, column: colFor(b.staff_id, b.starts_at),
     start: mins(b.starts_at, tz), end: mins(b.ends_at, tz) || 24 * 60, startLabel: fmtTime(b.starts_at, tz),
-    guest: b.customer?.name ?? "Guest", guestId: b.customer?.id ?? null, service: b.service?.name ?? "",
+    guest: b.guest_name ?? b.customer?.name ?? "Guest", guestId: b.customer?.id ?? null, service: b.service?.name ?? "",
     source: b.source, status: b.status, price: Number(b.price),
   }));
 

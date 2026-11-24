@@ -21,7 +21,7 @@ export async function loadOverview(s: Session) {
 
   let todayQ = supabase
     .from("bookings")
-    .select("id, reference, salon_id, staff_id, starts_at, ends_at, status, source, price, customer:customer_id (id, name), service:service_id (name), staff:staff_id (name)")
+    .select("id, reference, salon_id, staff_id, starts_at, ends_at, status, source, price, guest_name, customer:customer_id (id, name), service:service_id (name), staff:staff_id (name)")
     .in("salon_id", scopeIds)
     .gte("starts_at", dayStart)
     .lt("starts_at", dayEnd)
@@ -97,7 +97,7 @@ export async function loadOverview(s: Session) {
       id: b.id,
       reference: b.reference,
       time: formatInTimeZone(new Date(b.starts_at), tz, "h:mm a"),
-      guest: b.customer?.name ?? "Guest",
+      guest: b.guest_name ?? b.customer?.name ?? "Guest",
       guestId: b.customer?.id ?? null,
       service: b.service?.name ?? "",
       staff: b.staff?.name ?? "",
