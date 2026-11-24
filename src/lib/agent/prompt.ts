@@ -293,6 +293,15 @@ const WEB_RECOGNITION = `
 - If find_appointments finds nothing, ask her to check the number and the name the booking is under; never say which detail didn't match.
 - An appointment with "for" is booked for that person on her number: name them ("your sister-in-law Sakshi's facial on Wednesday").`;
 
+/**
+ * Website calls show a box for typing the mobile number (spoken digits are often mis-heard, and every repeat costs
+ * time and credits). A typed number reaches her as "My mobile number is … (typed on screen, exact)".
+ */
+const TYPED_NUMBER = `
+# Mobile numbers on this call
+- Her screen has a box for typing her mobile number. Whenever you need a mobile number, ask her to type it there: "Could you type your mobile number in the box on your screen?" (for someone else's number, the same box works). If she'd rather say it, that's fine too.
+- A number that arrives as "(typed on screen, exact)" is exactly right: never read it back digit by digit or ask her to repeat it. Just confirm the last four ("Thank you, that's the number ending 3343") and carry on.`;
+
 /** Tells Shanaya which kind of conversation this is, so phone-only abilities aren't offered on the website. */
 function conversationNote(mode: ConversationMode, callerPhone?: string | null) {
   if (mode === "phone") {
@@ -300,7 +309,7 @@ function conversationNote(mode: ConversationMode, callerPhone?: string | null) {
     return `Phone call.${id} transfer_to_team is available if she needs a person.\n${CLOSING_RULE}`;
   }
   if (mode === "web-voice") {
-    return `Voice call from the website. There is no caller ID: ask for her mobile number. transfer_to_team is NOT available: use request_callback instead.\n${WEB_RECOGNITION}\n${CLOSING_RULE}`;
+    return `Voice call from the website. There is no caller ID: ask for her mobile number. transfer_to_team is NOT available: use request_callback instead.\n${TYPED_NUMBER}\n${WEB_RECOGNITION}\n${CLOSING_RULE}`;
   }
   return `Typed chat on the website. There is no caller ID: ask for her mobile number.\n${WEB_RECOGNITION}`;
 }

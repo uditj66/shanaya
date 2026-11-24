@@ -7,6 +7,7 @@ import { AnimatePresence } from "motion/react";
 import { Captions, CaptionsOff, Mic, MicOff, PhoneOff } from "lucide-react";
 import { LiveOrb, type OrbState } from "@/components/live-orb";
 import { CallCardView } from "./call-card-view";
+import { NumberEntry } from "./number-entry";
 import type { useShanayaVoice } from "@/components/use-shanaya-voice";
 import { cn } from "@/lib/utils";
 import { EASE_OUT_SOFT } from "@/components/motion/motion-provider";
@@ -134,6 +135,7 @@ export function CallScreen({
             Your connection is weak. Shanaya may break up a little.
           </p>
         )}
+        {live && <NumberEntry asked={voice.numberAsked} onSend={voice.sendNumber} />}
         {card && (live || voice.status === "ended") && (
           <div className="w-full max-w-[22rem]" aria-live="polite">
             <CallCardView key={card.kind === "booking" ? card.reference : `${card.date}-${card.service}`} card={card} brandName={brandName} />
