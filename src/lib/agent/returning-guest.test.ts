@@ -65,6 +65,12 @@ describe("returning guests", () => {
     expect(nameMatches("Neha", "Nisha")).toBe(false);
   });
 
+  it("always replies in English letters, even when the guest's words arrive in Hindi script (seen on a live call)", () => {
+    for (const mode of ["phone", "web-voice", "chat"] as const) {
+      expect(buildKnowledge(ctx, { mode, callerPhone: mode === "phone" ? "919800000001" : null, now: NOW })).toContain("never write Devanagari");
+    }
+  });
+
   it("website calls and chat recognise guests by number + first name, never by reference", () => {
     for (const mode of ["web-voice", "chat"] as const) {
       const k = buildKnowledge(ctx, { mode, now: NOW });
