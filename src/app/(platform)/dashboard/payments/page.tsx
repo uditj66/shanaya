@@ -20,6 +20,7 @@ import {
   SegmentedNav,
 } from "@/components/admin/kit";
 import { RefundButton } from "./refund-button";
+import { depositRefundBlock, depositState } from "@/lib/payments/deposit-refund";
 
 const KIND = { gift_card: "Gift card", membership: "Membership", deposit: "Booking deposit" } as const;
 const FILTERS = [["paid", "Paid"], ["refunded", "Refunded"], ["failed", "Failed or abandoned"], ["all", "All"]] as const;
@@ -34,7 +35,7 @@ async function Payments({ searchParams }: { searchParams: Promise<{ status?: str
 
   let q = s.supabase
     .from("payments")
-    .select("id, kind, amount, status, method, payer_name, payer_phone, razorpay_payment_id, created_at, paid_at, refunded_at, refund_amount, error")
+    .select("id, kind, amount, status, method, payer_name, payer_phone, razorpay_payment_id, created_at, paid_at, refunded_at, refund_amount, error, ref_id")
     .eq("brand_id", brandId ?? "00000000-0000-0000-0000-000000000000")
     .order("created_at", { ascending: false })
     .limit(200);
@@ -49,6 +50,12 @@ async function Payments({ searchParams }: { searchParams: Promise<{ status?: str
       .eq("status", "paid")
       .gte("paid_at", formatInTimeZone(new Date(), tz, "yyyy-MM-01'T'00:00:00XXX")),
   ]);
+  // A paid deposit may since have been kept (late cancel), taken off a bill or refunded: show what it is now.
+  const depositIds = (rows ?? []).filter((p) => p.kind === "deposit" && p.status === "paid" && p.ref_id).map((p) => p.ref_id!);
+  const { data: depositBookings } = depositIds.length
+    ? await s.supabase.from("bookings").select("id, reference, deposit_status, starts_at, refund_by, created_at, updated_at, status").in("id", depositIds)
+    : { data: [] };
+  const depositOf = new Map((depositBookings ?? []).map((b) => [b.id, b]));
   const monthTotal = (month ?? []).reduce((t, r) => t + r.amount, 0) / 100;
   const byKind = (k: keyof typeof KIND) => (month ?? []).filter((r) => r.kind === k).reduce((t, r) => t + r.amount, 0) / 100;
 
@@ -87,7 +94,11 @@ async function Payments({ searchParams }: { searchParams: Promise<{ status?: str
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((p) => (
+                {rows.map((p) => {
+                  const deposit = p.kind === "deposit" && p.status === "paid" ? depositOf.get(p.ref_id ?? "") ?? null : null;
+                  const held = p.kind === "deposit" && p.status === "paid" ? depositState(deposit) : null;
+                  const why = held && !held.refundable ? depositRefundBlock(deposit, tz) : null;
+                  return (
                   <TableRow key={p.id}>
                     <TableCell className="pl-4 align-top text-muted-foreground">{formatInTimeZone(new Date(p.paid_at ?? p.created_at), tz, "d MMM, h:mm a")}</TableCell>
                     <TableCell className="align-top">
@@ -101,14 +112,24 @@ async function Payments({ searchParams }: { searchParams: Promise<{ status?: str
                     <TableCell className="tabular text-right align-top">{money(p.amount / 100, s.salon.currency)}</TableCell>
                     <TableCell className="align-top">
                       <StatusBadge status={p.status}>{p.status === "created" ? "abandoned" : p.status}</StatusBadge>
+                      {held && !held.refundable && (
+                        <>
+                          <StatusBadge tone="neutral" className="ml-1.5">{held.label}</StatusBadge>
+                          {why && <p className="mt-1 max-w-80 text-xs whitespace-normal text-muted-foreground">{why}</p>}
+                        </>
+                      )}
                       {p.status === "refunded" && p.refund_amount && p.refund_amount < p.amount && (
                         <p className="mt-1 text-xs text-muted-foreground">{money(p.refund_amount / 100, s.salon.currency)} refunded (benefits used kept)</p>
                       )}
                       {p.razorpay_payment_id && <p className="mt-1 font-mono text-[0.6875rem] text-muted-foreground">{p.razorpay_payment_id}</p>}
                     </TableCell>
-                    <TableCell className="pr-4 text-right align-top">{p.status === "paid" && <RefundButton paymentId={p.id} label={money(p.amount / 100, s.salon.currency)} />}</TableCell>
+                    <TableCell className="pr-4 text-right align-top">
+                      {/* no Refund button for a deposit that's no longer held: the reason is shown under its status */}
+                      {p.status === "paid" && (!held || held.refundable) && <RefundButton paymentId={p.id} label={money(p.amount / 100, s.salon.currency)} />}
+                    </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           ) : (

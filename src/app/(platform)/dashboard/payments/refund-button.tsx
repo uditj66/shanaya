@@ -7,7 +7,8 @@ import { Spinner } from "@/components/admin/ui/spinner";
 import { previewRefund, refundOnlinePayment, type RefundPreview } from "./actions";
 
 const inr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-const NOTHING_TO_REFUND = "Benefits already used are worth at least the price paid, so there is nothing to refund.";
+const PREVIEW_TIMEOUT_MS = 15_000;
+const NOTHING_TO_REFUND ="Benefits already used are worth at least the price paid, so there is nothing to refund.";
 
 export function RefundButton({ paymentId }: { paymentId: string; label?: string }) {
   // The server works out the amount (memberships: price minus benefits used) when the dialog opens, before anything is refunded.
@@ -17,7 +18,12 @@ export function RefundButton({ paymentId }: { paymentId: string; label?: string 
   const loadPreview = () => {
     const id = ++req.current;
     setPv(null);
-    previewRefund(paymentId)
+    // A page opened before a new deployment can call a server action the new version no longer has, and that request
+    // may never answer. Give up after a while instead of spinning forever.
+    const timeout = new Promise<RefundPreview>((resolve) =>
+      setTimeout(() => resolve({ ok: false, error: "The server didn't answer. The dashboard may have just been updated: refresh the page and try again." }), PREVIEW_TIMEOUT_MS),
+    );
+    Promise.race([previewRefund(paymentId), timeout])
       .catch((e: unknown): RefundPreview => ({ ok: false, error: e instanceof Error ? e.message : "Couldn't work out the refund amount." }))
       .then((r) => {
         if (id === req.current) setPv(r);
