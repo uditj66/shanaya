@@ -1,4 +1,4 @@
-// Public brand-site data. Every read is a `use cache` function (ISR): pages are prerendered and stay static until
+// Public website data. Every read is a `use cache` function (ISR): pages are prerendered and stay static until
 // the dashboard changes something and calls `updateTag(tags.x(slug))`. Only explicit, public columns are selected.
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
@@ -6,6 +6,9 @@ import { adminClient } from "@/lib/supabase/admin";
 
 /** Sample rows (is_sample) show in development and previews; production hides them unless SHOW_SAMPLE_CONTENT=true. */
 export const SHOW_SAMPLES = process.env.SHOW_SAMPLE_CONTENT === "true" || (process.env.NODE_ENV !== "production" && process.env.SHOW_SAMPLE_CONTENT !== "false");
+
+/** The one salon brand this app runs. Its rows in the database are keyed by this slug. */
+export const BRAND = "lumiere";
 
 export const tags = {
   brand: (b: string) => `brand:${b}`,
@@ -49,17 +52,10 @@ export async function getBrand(slug: string) {
     ...data,
     faqs: (data.faqs ?? []) as Faq[],
     nudge: data.nudge_settings as NudgeSettings,
-    siteUrl: data.site_url ?? process.env[`${slug.toUpperCase()}_SITE_URL`] ?? `http://${slug}.localhost:3000`,
+    siteUrl: data.site_url ?? process.env[`${slug.toUpperCase()}_SITE_URL`] ?? process.env.PUBLIC_APP_URL ?? "http://localhost:3000",
   };
 }
 export type BrandData = NonNullable<Awaited<ReturnType<typeof getBrand>>>;
-
-export async function getBrandSlugs() {
-  "use cache";
-  cacheLife("days");
-  const { data } = await db().from("brands").select("slug");
-  return (data ?? []).map((b) => b.slug);
-}
 
 /* ───────────────────────────── Studios ─────────────────────────── */
 export type Hours = Record<string, [string, string][]>;

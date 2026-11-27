@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import * as m from "motion/react-m";
-import { brandHref } from "@/lib/brand/href";
+import { siteHref } from "@/lib/brand/href";
 import { Button } from "@/components/ui/button";
 import { EASE_OUT_SOFT } from "@/components/motion/motion-provider";
 import type { NAV } from "./site-header";
@@ -36,7 +36,7 @@ export function MobileMenu({ name, items }: { name: string; items: typeof NAV })
             <ul className="grid gap-2">
               {items.map((n, i) => (
                 <m.li key={n.href} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE_OUT_SOFT, delay: 0.08 + i * 0.06 }}>
-                  <Link href={brandHref(n.href)} onClick={() => setOpen(false)} className="display-cut block py-2 text-h2">
+                  <Link href={siteHref(n.href)} onClick={() => setOpen(false)} className="display-cut block py-2 text-h2">
                     {n.label}
                   </Link>
                 </m.li>
@@ -52,7 +52,7 @@ export function MobileMenu({ name, items }: { name: string; items: typeof NAV })
                 ] as const
               ).map(([href, label]) => (
                 <li key={href}>
-                  <Link href={brandHref(href)} onClick={() => setOpen(false)} className="inline-flex min-h-11 items-center">
+                  <Link href={siteHref(href)} onClick={() => setOpen(false)} className="inline-flex min-h-11 items-center">
                     {label}
                   </Link>
                 </li>
@@ -61,7 +61,7 @@ export function MobileMenu({ name, items }: { name: string; items: typeof NAV })
           </nav>
           <div className="container-page border-t border-line py-5">
             <Button asChild size="lg" className="w-full">
-              <Link href={brandHref("/book")} onClick={() => setOpen(false)}>
+              <Link href={siteHref("/book")} onClick={() => setOpen(false)}>
                 Book a ritual
               </Link>
             </Button>

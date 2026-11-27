@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import * as m from "motion/react-m";
 import { AnimatePresence } from "motion/react";
-import { brandHref } from "@/lib/brand/href";
+import { siteHref } from "@/lib/brand/href";
 import { cn } from "@/lib/utils";
 import { BrandImage } from "./brand-image";
 import { Button } from "@/components/ui/button";
@@ -126,10 +126,10 @@ export function StudioFinder({ studios, cities }: { studios: FinderStudio[]; cit
             </div>
             <div className="flex gap-3">
               <Button asChild variant="quiet">
-                <Link href={brandHref(`/studios/${studio.slug}`)}>View studio</Link>
+                <Link href={siteHref(`/studios/${studio.slug}`)}>View studio</Link>
               </Button>
               <Button asChild>
-                <Link href={brandHref(`/book?studio=${studio.slug}`)}>Book here</Link>
+                <Link href={siteHref(`/book?studio=${studio.slug}`)}>Book here</Link>
               </Button>
             </div>
           </div>

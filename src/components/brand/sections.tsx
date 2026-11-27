@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { brandHref, type BrandPath } from "@/lib/brand/href";
+import { siteHref, type SitePath } from "@/lib/brand/href";
 import { cn } from "@/lib/utils";
 import { MaskLines } from "@/components/motion/mask-lines";
 import { Reveal } from "@/components/motion/reveal";
@@ -37,7 +37,7 @@ export function SectionHeader({
   /** Explicit line breaks for the mask reveal; otherwise `title` is used as one block. */
   lines?: string[];
   lead?: string;
-  link?: { href: BrandPath; label: string };
+  link?: { href: SitePath; label: string };
   id?: string;
   className?: string;
   align?: "left" | "center";
@@ -61,7 +61,7 @@ export function SectionHeader({
       )}
       {link && (
         <Reveal delay={0.15}>
-          <Link href={brandHref(link.href)} className="group inline-flex min-h-11 items-center gap-3 text-sm tracking-[0.04em]">
+          <Link href={siteHref(link.href)} className="group inline-flex min-h-11 items-center gap-3 text-sm tracking-[0.04em]">
             <span className="border-b border-charcoal/30 pb-0.5 transition-colors group-hover:border-charcoal">{link.label}</span>
             <span aria-hidden="true" className="transition-transform duration-500 ease-[var(--ease-out-soft)] group-hover:translate-x-1">→</span>
           </Link>
@@ -101,7 +101,7 @@ export function Faqs({ items, className }: { items: { q: string; a: string }[]; 
 }
 
 /** Small breadcrumb trail (visual + semantic; the JSON-LD version is added by the page). */
-export function Breadcrumbs({ items }: { items: [string, BrandPath | null][] }) {
+export function Breadcrumbs({ items }: { items: [string, SitePath | null][] }) {
   return (
     <nav aria-label="Breadcrumb" className="container-page pt-8 md:pt-10">
       <ol className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-stone">
@@ -109,7 +109,7 @@ export function Breadcrumbs({ items }: { items: [string, BrandPath | null][] }) 
           <li key={label} className="flex items-center gap-2">
             {i > 0 && <span aria-hidden="true" className="text-champagne">/</span>}
             {href ? (
-              <Link href={brandHref(href)} className="inline-flex min-h-8 items-center hover:text-charcoal">{label}</Link>
+              <Link href={siteHref(href)} className="inline-flex min-h-8 items-center hover:text-charcoal">{label}</Link>
             ) : (
               <span aria-current="page" className="text-charcoal">{label}</span>
             )}

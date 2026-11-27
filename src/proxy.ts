@@ -1,19 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// One website per salon brand, served from its own address by this app:
-//   guests get the brand site (/, /services, /book …), staff use /login and /dashboard on the SAME address.
-// BRAND_HOSTS="lumiere.in=lumiere,www.lumiere.in=lumiere"; in development lumiere.localhost:3000 just works.
-const BRAND_HOSTS: Record<string, string> = Object.fromEntries(
-  (process.env.BRAND_HOSTS ?? "")
-    .split(",")
-    .map((pair) => pair.trim().split("=") as [string, string])
-    .filter(([host, slug]) => host && slug)
-    .map(([host, slug]) => [host.toLowerCase(), slug]),
-);
-if (process.env.NODE_ENV !== "production") BRAND_HOSTS["lumiere.localhost"] ??= "lumiere";
+// One app serves both the Lumière website (/, /services, /book …) and the staff screens (/login, /dashboard).
 
-// When set, the platform's own pages (e.g. shanaya-self.vercel.app) forward visitors to this single main address.
+// When set, every other address (e.g. the *.vercel.app one) forwards visitors to this single main address.
 // APIs (/api/…, incl. the Vapi phone webhook) keep working on every address.
 const PRIMARY_SITE = (() => {
   try {
@@ -23,33 +13,22 @@ const PRIMARY_SITE = (() => {
   }
 })();
 
-/** Staff screens: same on every address. */
+/** Staff screens. */
 const STAFF_PATHS = ["/dashboard", "/login"];
 const isStaffPath = (p: string) => STAFF_PATHS.some((s) => p === s || p.startsWith(`${s}/`));
 
 export async function proxy(request: NextRequest) {
   const host = (request.headers.get("host") ?? "").split(":")[0].toLowerCase();
   const { pathname } = request.nextUrl;
-  const brand = BRAND_HOSTS[host];
 
-  // 1. Old platform address → the one main website (same path), so there's a single place for guests and staff.
-  if (!brand && PRIMARY_SITE && host !== PRIMARY_SITE.hostname) {
+  // 1. Any other address → the main address (same path), so guests and staff share one place.
+  if (PRIMARY_SITE && host !== PRIMARY_SITE.hostname) {
     const url = new URL(`${pathname}${request.nextUrl.search}`, PRIMARY_SITE);
     return NextResponse.redirect(url, 307);
   }
 
-  // 2. Staff screens (login, dashboard) on any address, including the brand's own.
+  // 2. Staff screens: refresh the login and keep signed-out visitors out of the dashboard.
   if (isStaffPath(pathname)) return staffGate(request, pathname);
-
-  // 3. Brand address → the brand site, with clean URLs (/services → /b/lumiere/services).
-  if (brand) {
-    // Framework-generated URLs (e.g. opengraph-image) already carry the internal prefix: serve them as they are.
-    if (pathname === `/b/${brand}` || pathname.startsWith(`/b/${brand}/`)) return NextResponse.next();
-    const url = request.nextUrl.clone();
-    const internal = pathname === "/sitemap.xml" ? "/seo-sitemap" : pathname === "/" ? "" : pathname;
-    url.pathname = `/b/${brand}${internal}`;
-    return NextResponse.rewrite(url);
-  }
 
   return NextResponse.next();
 }
