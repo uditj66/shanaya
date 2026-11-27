@@ -2,9 +2,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, Lock } from "lucide-react";
-import { abandonPayment, confirmPayment, startMembershipPurchase, type ConfirmResult } from "@/app/(brand)/b/[brand]/payment-actions";
+import { abandonPayment, confirmPayment, startMembershipPurchase, type ConfirmResult } from "@/app/(site)/payment-actions";
 import { openCheckout } from "@/lib/payments/checkout-client";
-import { brandHref } from "@/lib/brand/href";
+import { siteHref } from "@/lib/brand/href";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Input, Label } from "@/components/ui/form-controls";
@@ -79,7 +79,7 @@ export function JoinMembership({ brand, brandName, tier, studios, primary, testM
         <p className="mt-2">
           {done.name.split(" ")[0]}, your {done.tier} membership runs {day(done.startsAt)} to {day(done.endsAt)}. Mention your mobile number at any studio.
         </p>
-        <Button asChild size="sm" className="mt-4"><Link href={brandHref("/book")}>Book your first ritual</Link></Button>
+        <Button asChild size="sm" className="mt-4"><Link href={siteHref("/book")}>Book your first ritual</Link></Button>
       </div>
     );
   }
@@ -128,7 +128,7 @@ export function JoinMembership({ brand, brandName, tier, studios, primary, testM
               <Checkbox id={id("consent")} name="consent" className="mt-0.5" {...describe("consent")} />
               <Label htmlFor={id("consent")} className="font-normal leading-relaxed text-stone">
                 I agree to the membership terms: it lasts one {tier.period} from today (or from the end of my current membership), is personal to me, and benefits apply at every {brandName} studio. See our{" "}
-                <Link href={brandHref("/privacy")} className="underline underline-offset-4">privacy notice</Link>.
+                <Link href={siteHref("/privacy")} className="underline underline-offset-4">privacy notice</Link>.
               </Label>
             </div>
             {err("consent")}

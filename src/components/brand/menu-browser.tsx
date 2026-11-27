@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import * as m from "motion/react-m";
 import { AnimatePresence } from "motion/react";
-import { brandHref } from "@/lib/brand/href";
+import { siteHref } from "@/lib/brand/href";
 import { cn, formatDuration, formatPrice } from "@/lib/utils";
 import { Badge } from "@/components/ui/display";
 import { Select } from "@/components/ui/form-controls";
@@ -71,7 +71,7 @@ export function MenuBrowser({
   );
   const groups = categories.map((c) => ({ ...c, items: visible.filter((v) => v.categorySlug === c.slug) })).filter((g) => g.items.length);
   const studioLabel = studios.find((s) => s.slug === studio)?.label;
-  const bookHref = (code: string) => brandHref(`/book?service=${code}${studio ? `&studio=${studio}` : ""}`);
+  const bookHref = (code: string) => siteHref(`/book?service=${code}${studio ? `&studio=${studio}` : ""}`);
 
   return (
     <div>
@@ -125,7 +125,7 @@ export function MenuBrowser({
                     <BrandImage id={i.image} fill sizes="96px" alt="" className="transition-transform duration-700 ease-[var(--ease-out-soft)] group-hover:scale-105" />
                   </div>
                   <div className="min-w-0">
-                    <Link href={brandHref(`/services/${i.slug}`)} className="display-cut text-h3 after:absolute after:inset-0 sm:relative">
+                    <Link href={siteHref(`/services/${i.slug}`)} className="display-cut text-h3 after:absolute after:inset-0 sm:relative">
                       {i.name}
                     </Link>
                     <p className="mt-1 text-sm text-stone">{i.headline}</p>

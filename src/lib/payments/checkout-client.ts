@@ -1,5 +1,5 @@
 // Razorpay Checkout in the browser. The script loads only when a guest actually pays, never on page load.
-import type { CheckoutStart } from "@/app/(brand)/b/[brand]/payment-actions";
+import type { CheckoutStart } from "@/app/(site)/payment-actions";
 
 type Success = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
 type Failure = { error?: { description?: string; reason?: string } };

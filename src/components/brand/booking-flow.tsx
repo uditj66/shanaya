@@ -7,8 +7,8 @@ import { useSearchParams } from "next/navigation";
 import * as m from "motion/react-m";
 import { AnimatePresence } from "motion/react";
 import { Check } from "lucide-react";
-import { bookAppointment, previewGiftCard, type BookState } from "@/app/(brand)/b/[brand]/book/actions";
-import { brandHref } from "@/lib/brand/href";
+import { bookAppointment, previewGiftCard, type BookState } from "@/app/(site)/book/actions";
+import { siteHref } from "@/lib/brand/href";
 import { cn, formatDuration, formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge, Skeleton } from "@/components/ui/display";
@@ -559,7 +559,7 @@ function DetailsStep({
             <Checkbox id="f-consent" name="consent" aria-invalid={fe.consent ? true : undefined} aria-describedby={fe.consent ? "e-consent" : undefined} className="mt-0.5" />
             <Label htmlFor="f-consent" className="font-normal leading-relaxed text-stone">
               I agree that Lumière may contact me about this {consult ? "request" : "booking"}. See our{" "}
-              <Link href={brandHref("/privacy")} className="underline underline-offset-4">privacy notice</Link>.
+              <Link href={siteHref("/privacy")} className="underline underline-offset-4">privacy notice</Link>.
             </Label>
           </div>
           {fieldError("consent")}
@@ -708,7 +708,7 @@ function Confirmation({ state, refundHours }: { state: Extract<BookState, { ok: 
               <a href={ics()} download={`lumiere-${state.reference}.ics`}>Add to calendar</a>
             </Button>
             <Button asChild>
-              <Link href={brandHref("/")}>Back to home</Link>
+              <Link href={siteHref("/")}>Back to home</Link>
             </Button>
           </div>
         </>
@@ -717,7 +717,7 @@ function Confirmation({ state, refundHours }: { state: Extract<BookState, { ok: 
           <h2 id="done-title" className="display-cut mt-8 text-display-l">Thank you.</h2>
           <p className="mt-5 text-lead text-stone">The {state.studio} team will call you during opening hours to plan your {state.treatment}.</p>
           <Button asChild className="mt-10">
-            <Link href={brandHref("/")}>Back to home</Link>
+            <Link href={siteHref("/")}>Back to home</Link>
           </Button>
         </>
       )}

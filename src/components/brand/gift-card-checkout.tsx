@@ -4,9 +4,9 @@ import Link from "next/link";
 import type { Route } from "next";
 import * as m from "motion/react-m";
 import { Check, Copy, Lock, MessageCircle } from "lucide-react";
-import { abandonPayment, confirmPayment, startGiftCardPurchase, type ConfirmResult } from "@/app/(brand)/b/[brand]/payment-actions";
+import { abandonPayment, confirmPayment, startGiftCardPurchase, type ConfirmResult } from "@/app/(site)/payment-actions";
 import { openCheckout } from "@/lib/payments/checkout-client";
-import { brandHref } from "@/lib/brand/href";
+import { siteHref } from "@/lib/brand/href";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Input, Label, Textarea } from "@/components/ui/form-controls";
@@ -131,7 +131,7 @@ export function GiftCardCheckout({ brand, brandName, studios, validityMonths, te
           <Checkbox id="gc-consent" name="consent" className="mt-0.5" {...describe("consent")} />
           <Label htmlFor="gc-consent" className="font-normal leading-relaxed text-stone">
             I agree to the gift card terms: valid for {validityMonths} months at every {brandName} studio, usable across visits until the balance is used, and not exchangeable for cash. See our{" "}
-            <Link href={brandHref("/privacy")} className="underline underline-offset-4">privacy notice</Link>.
+            <Link href={siteHref("/privacy")} className="underline underline-offset-4">privacy notice</Link>.
           </Label>
         </div>
         {err("consent")}

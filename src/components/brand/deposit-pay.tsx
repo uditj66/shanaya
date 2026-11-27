@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Lock } from "lucide-react";
-import { abandonPayment, cancelDepositHold, confirmPayment, depositCheckout, type ConfirmResult } from "@/app/(brand)/b/[brand]/payment-actions";
+import { abandonPayment, cancelDepositHold, confirmPayment, depositCheckout, type ConfirmResult } from "@/app/(site)/payment-actions";
 import { openCheckout } from "@/lib/payments/checkout-client";
 import type { DepositCheckout } from "@/lib/payments/deposits";
 import { cn } from "@/lib/utils";

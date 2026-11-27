@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { brandHref, type BrandPath } from "@/lib/brand/href";
+import { siteHref, type SitePath } from "@/lib/brand/href";
 import { Button } from "@/components/ui/button";
 import { MobileMenu } from "./mobile-menu";
 
-export const NAV: { href: BrandPath; label: string }[] = [
+export const NAV: { href: SitePath; label: string }[] = [
   { href: "/services", label: "Treatments" },
   { href: "/occasions", label: "Occasions" },
   { href: "/studios", label: "Studios" },
@@ -13,7 +13,7 @@ export const NAV: { href: BrandPath; label: string }[] = [
 ];
 
 /** Sticky header, anchored during page transitions. Desktop: links | wordmark | book. Phone: wordmark | book + menu. */
-export function SiteHeader({ name, hide = [] }: { name: string; hide?: BrandPath[] }) {
+export function SiteHeader({ name, hide = [] }: { name: string; hide?: SitePath[] }) {
   // Pages with nothing real to show yet (e.g. a lookbook of sample photos only) are left out of the menu.
   const nav = NAV.filter((n) => !hide.includes(n.href));
   return (
@@ -23,7 +23,7 @@ export function SiteHeader({ name, hide = [] }: { name: string; hide?: BrandPath
           <ul className="flex gap-7">
             {nav.slice(0, 4).map((n) => (
               <li key={n.href}>
-                <Link href={brandHref(n.href)} className="relative py-2 text-[0.8125rem] tracking-[0.04em] text-stone transition-colors hover:text-charcoal">
+                <Link href={siteHref(n.href)} className="relative py-2 text-[0.8125rem] tracking-[0.04em] text-stone transition-colors hover:text-charcoal">
                   {n.label}
                 </Link>
               </li>
@@ -31,7 +31,7 @@ export function SiteHeader({ name, hide = [] }: { name: string; hide?: BrandPath
           </ul>
         </nav>
         <div className="lg:hidden" />
-        <Link href={brandHref("/")} className="display-cut justify-self-center text-[1.625rem] leading-none tracking-[0.02em] md:text-[1.875rem]" aria-label={`${name}, home`}>
+        <Link href={siteHref("/")} className="display-cut justify-self-center text-[1.625rem] leading-none tracking-[0.02em] md:text-[1.875rem]" aria-label={`${name}, home`}>
           {name}
         </Link>
         <div className="flex items-center justify-end gap-2 md:gap-5">
@@ -39,7 +39,7 @@ export function SiteHeader({ name, hide = [] }: { name: string; hide?: BrandPath
             <ul className="flex gap-7">
               {nav.slice(4).map((n) => (
                 <li key={n.href}>
-                  <Link href={brandHref(n.href)} className="py-2 text-[0.8125rem] tracking-[0.04em] text-stone transition-colors hover:text-charcoal">
+                  <Link href={siteHref(n.href)} className="py-2 text-[0.8125rem] tracking-[0.04em] text-stone transition-colors hover:text-charcoal">
                     {n.label}
                   </Link>
                 </li>
@@ -47,7 +47,7 @@ export function SiteHeader({ name, hide = [] }: { name: string; hide?: BrandPath
             </ul>
           </nav>
           <Button asChild size="sm" className="hidden sm:inline-flex">
-            <Link href={brandHref("/book")}>Book</Link>
+            <Link href={siteHref("/book")}>Book</Link>
           </Button>
           <MobileMenu name={name} items={nav} />
         </div>

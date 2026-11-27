@@ -2,8 +2,8 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import * as m from "motion/react-m";
-import { submitEnquiry, type EnquiryKind, type EnquiryState } from "@/app/(brand)/b/[brand]/enquiries";
-import { brandHref } from "@/lib/brand/href";
+import { submitEnquiry, type EnquiryKind, type EnquiryState } from "@/app/(site)/enquiries";
+import { siteHref } from "@/lib/brand/href";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Input, Label, Textarea } from "@/components/ui/form-controls";
@@ -86,7 +86,7 @@ export function EnquiryForm({ brand, kind, fields, submitLabel }: { brand: strin
         <div className="flex items-start gap-3">
           <Checkbox id={`${kind}-consent`} name="consent" className="mt-0.5" {...describe("consent")} />
           <Label htmlFor={`${kind}-consent`} className="font-normal leading-relaxed text-stone">
-            I agree that Lumière may contact me about this. See our <Link href={brandHref("/privacy")} className="underline underline-offset-4">privacy notice</Link>.
+            I agree that Lumière may contact me about this. See our <Link href={siteHref("/privacy")} className="underline underline-offset-4">privacy notice</Link>.
           </Label>
         </div>
         {err("consent")}

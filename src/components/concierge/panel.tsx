@@ -9,8 +9,8 @@ import { DefaultChatTransport, type InferUITools, type UIMessage } from "ai";
 import * as m from "motion/react-m";
 import { ArrowUp, Mic, Phone, X } from "lucide-react";
 import type { ConciergeTools } from "@/lib/concierge/tools";
-import { saveChatLead } from "@/app/(brand)/b/[brand]/concierge-actions";
-import { depositCheckout } from "@/app/(brand)/b/[brand]/payment-actions";
+import { saveChatLead } from "@/app/(site)/concierge-actions";
+import { depositCheckout } from "@/app/(site)/payment-actions";
 import { DepositPay } from "@/components/brand/deposit-pay";
 import { AnimatePresence } from "motion/react";
 import { useShanayaVoice } from "@/components/use-shanaya-voice";
@@ -66,7 +66,7 @@ function CallNote({ call, agentName, brandName }: { call: PastCall; agentName: s
   );
 }
 
-const href = (p: string) => p as Route; // brand paths are clean URLs on the brand domain (see lib/brand/href.ts)
+const href = (p: string) => p as Route; // website paths (see lib/brand/href.ts)
 
 function chatId() {
   try {

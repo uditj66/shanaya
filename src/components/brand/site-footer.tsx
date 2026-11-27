@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { cacheLife } from "next/cache";
-import { brandHref, type BrandPath } from "@/lib/brand/href";
+import { siteHref, type SitePath } from "@/lib/brand/href";
 import { getCities, type BrandData } from "@/lib/brand/data";
 import { Divider } from "@/components/ui/display";
 
-const LINKS: [string, [BrandPath, string][]][] = [
+const LINKS: [string, [SitePath, string][]][] = [
   ["Visit", [["/services", "Treatments"], ["/occasions", "Occasions & packages"], ["/book", "Book online"], ["/gift-cards", "Gift cards"], ["/offers", "Offers & membership"]]],
   ["Lumière", [["/about", "Our story"], ["/team", "Specialists"], ["/lookbook", "Lookbook"], ["/careers", "Careers"], ["/contact", "Contact"]]],
 ];
@@ -36,7 +36,7 @@ export async function SiteFooter({ brand, hide = [] }: { brand: BrandData; hide?
             <ul className="mt-5 grid gap-1">
               {links.filter(([href]) => !hide.includes(href)).map(([href, label]) => (
                 <li key={href}>
-                  <Link href={brandHref(href)} className="inline-flex min-h-10 items-center text-[0.9375rem] text-charcoal/85 hover:text-charcoal">
+                  <Link href={siteHref(href)} className="inline-flex min-h-10 items-center text-[0.9375rem] text-charcoal/85 hover:text-charcoal">
                     {label}
                   </Link>
                 </li>
@@ -53,7 +53,7 @@ export async function SiteFooter({ brand, hide = [] }: { brand: BrandData; hide?
                 <ul className="mt-1">
                   {studios.map((s) => (
                     <li key={s.slug}>
-                      <Link href={brandHref(`/studios/${s.slug}`)} className="inline-flex min-h-8 items-center text-stone hover:text-charcoal">
+                      <Link href={siteHref(`/studios/${s.slug}`)} className="inline-flex min-h-8 items-center text-stone hover:text-charcoal">
                         {s.area}
                       </Link>
                     </li>
@@ -69,10 +69,10 @@ export async function SiteFooter({ brand, hide = [] }: { brand: BrandData; hide?
         <div className="flex flex-col gap-3 pt-6 text-[0.8125rem] text-stone md:flex-row md:items-center md:justify-between">
           <p>© <Year /> {brand.full_name}. Prices exclude GST.</p>
           <div className="flex gap-6">
-            <Link href={brandHref("/privacy")} className="inline-flex min-h-10 items-center hover:text-charcoal">Privacy</Link>
-            <Link href={brandHref("/contact")} className="inline-flex min-h-10 items-center hover:text-charcoal">Contact</Link>
-            {/* Staff sign in on the same address (the dashboard has its own layout, so this is a full page load). */}
-            <a href="/login" className="inline-flex min-h-10 items-center hover:text-charcoal">Staff login</a>
+            <Link href={siteHref("/privacy")} className="inline-flex min-h-10 items-center hover:text-charcoal">Privacy</Link>
+            <Link href={siteHref("/contact")} className="inline-flex min-h-10 items-center hover:text-charcoal">Contact</Link>
+            {/* Staff sign in on the same address (the dashboard has its own root layout, so this is a full page load). */}
+            <Link href="/login" className="inline-flex min-h-10 items-center hover:text-charcoal">Staff login</Link>
           </div>
         </div>
       </div>
